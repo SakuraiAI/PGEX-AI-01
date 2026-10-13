@@ -16,6 +16,7 @@ class DiscoveryTests(unittest.TestCase):
             {'Name': 'Visual Studio Code', 'AppID': 'Microsoft.VisualStudioCode'},
             {'Name': 'Poznámkový blok', 'AppID': 'Microsoft.Notepad!App'},
             {'Name': 'Blender', 'AppID': 'steam://rungameid/365670'},
+            {'Name': 'Kalkulačka', 'AppID': 'Microsoft.Calculator!App'},
         ])
 
     def test_alias_and_diacritics(self):
@@ -55,6 +56,37 @@ class DiscoveryTests(unittest.TestCase):
         with patch('app.core.engine.find_registered_app', return_value=item):
             self.assertEqual(engine._try_local_app_action('Otevři Poznámkový blok'), 'Opened Notepad')
         engine.open_connected_app.assert_called_once_with(item['key'], '', log_result=False)
+
+    def test_calculator_chat_uses_real_alias_matching_before_model_planning(self):
+        engine = LunaEngine.__new__(LunaEngine)
+        engine._looks_like_blender_scene_request = Mock(return_value=False)
+        engine._try_local_path_action = Mock(return_value=None)
+        engine._split_action_chain = Mock(side_effect=lambda text: [text])
+        engine._try_model_agent_action = Mock(side_effect=AssertionError('Must not call model'))
+        engine._guarded_action = Mock(side_effect=lambda category, label, callback: callback())
+        engine.open_connected_app = Mock(return_value={'ok': True, 'message': 'Opened Calculator'})
+        with patch.object(discovery, 'list_applications', return_value=self.apps):
+            for command in ['otevri kalkulacku', 'Otevři kalkulačku', 'Spusť calc', 'Otevři kalkulačku!']:
+                with self.subTest(command=command):
+                    self.assertEqual(engine._try_local_action(command), 'Opened Calculator')
+            self.assertEqual(discovery.find_registered_app('calc.exe')['title'], 'Kalkulačka')
+        engine._try_model_agent_action.assert_not_called()
+        self.assertEqual(engine._guarded_action.call_args.args[0], 'app_launch')
+
+    def test_model_top_level_app_argument_is_resolved_and_guarded(self):
+        engine = LunaEngine.__new__(LunaEngine)
+        engine._should_skip_reopening_active_app = Mock(return_value=False)
+        engine.projects = Mock()
+        engine.projects.get_current_project.return_value = None
+        engine.open_connected_app = Mock(return_value={'ok': True, 'message': 'Opened Calculator'})
+        engine._guarded_action = Mock(return_value='Confirmation required')
+        with patch.object(discovery, 'list_applications', return_value=self.apps):
+            result = engine._try_structured_action_response('otevri kalkulacku', '{"action":"open_app","app":"calc"}')
+        self.assertEqual(result, 'Confirmation required')
+        engine.open_connected_app.assert_not_called()
+        self.assertEqual(engine._guarded_action.call_args.args[0], 'app_launch')
+        self.assertEqual(engine._guarded_action.call_args.args[2](), 'Opened Calculator')
+        engine.open_connected_app.assert_called_once_with('Kalkulačka', '', log_result=False)
 
 class ResponseProfileTests(unittest.TestCase):
     def test_saved_profiles_change_actual_nvidia_request_budget(self):

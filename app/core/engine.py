@@ -2363,7 +2363,7 @@ class LunaEngine:
             )
 
         if tool == "open_app":
-            app_key = self._known_app_key(str(args.get("app") or args.get("target") or user_input))
+            app_key = self._known_app_key(str(args.get("app") or args.get("target") or plan.get("app") or user_input))
             if not app_key:
                 return None
             if self._should_skip_reopening_active_app(user_input, app_key):
@@ -2405,7 +2405,7 @@ class LunaEngine:
             )
 
         if tool == "find_app_path":
-            app_key = self._known_app_key(str(args.get("app") or args.get("target") or user_input))
+            app_key = self._known_app_key(str(args.get("app") or args.get("target") or plan.get("app") or user_input))
             if not app_key:
                 return None
             return self._guarded_action(
@@ -2567,11 +2567,12 @@ class LunaEngine:
 
             return self._guarded_action(category, f"chain action: {title}", run_chain)
 
-        model_action_result = self._try_model_agent_action(user_input)
-        if model_action_result is not None:
-            return model_action_result
+        # Resolve installed apps before asking a model to invent an action plan.
+        app_action_result = self._try_local_app_action(user_input)
+        if app_action_result is not None:
+            return app_action_result
 
-        return self._try_local_app_action(user_input)
+        return self._try_model_agent_action(user_input)
 
     def _try_local_path_action(self, user_input: str) -> str | None:
         normalized = ascii_fold_text(" ".join(user_input.strip().split()))

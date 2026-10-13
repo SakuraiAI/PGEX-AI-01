@@ -14,7 +14,7 @@ ALIASES = {
     "chrome": ["google chrome", "chrom"],
     "unreal": ["unreal engine", "unreal engine 5", "ue5"],
     "notepad": ["poznamkovy blok", "poznamky"],
-    "calculator": ["kalkulacka", "kalkulator"],
+    "calculator": ["calc", "calc.exe", "kalkulacka", "kalkulacku", "kalkulator"],
     "fl_studio": ["fl studio"], "davinci": ["davinci resolve"],
     "premiere": ["adobe premiere pro", "premiere pro"],
     "after_effects": ["adobe after effects", "after effects"],
