@@ -1,4 +1,4 @@
-export default function AppShell({ topbar, sidebar, main, profilePanel, notificationsPanel, contextMenu }) {
+export default function AppShell({ topbar, sidebar, main, notificationsPanel, contextMenu }) {
   return (
     <div className="app-shell">
       {topbar}
@@ -6,7 +6,6 @@ export default function AppShell({ topbar, sidebar, main, profilePanel, notifica
         {sidebar}
         <main className="app-main">{main}</main>
       </div>
-      {profilePanel}
       {notificationsPanel}
       {contextMenu}
     </div>

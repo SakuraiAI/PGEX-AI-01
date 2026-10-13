@@ -1,20 +1,8 @@
-export const sidebarSections = [
-  { key: 'vision', label: 'Vision' },
-  { key: 'projects', label: 'Projects' },
-  { key: 'friends', label: 'Friends' },
-];
-
 export const initialChats = [];
 
 export const initialMessages = [];
 
 export const projectCards = [];
-
-export const applications = [
-  { id: 'a-1', name: 'VS Code', detail: 'Connected workspace editor', status: 'Ready' },
-  { id: 'a-2', name: 'Blender', detail: '3D and asset creation layer', status: 'Ready' },
-  { id: 'a-3', name: 'Unreal Engine', detail: 'Real-time scene and game environment', status: 'Path missing' },
-];
 
 export const updates = [
   {
@@ -56,10 +44,4 @@ export const updates = [
       'The shell is ready for calmer speech output and listening states next.',
     ],
   },
-];
-
-export const friends = [
-  { id: 'f-1', name: 'XenoAI', detail: 'Strategic sister layer for deep planning and hidden reasoning.', status: 'Linked' },
-  { id: 'f-2', name: 'Task Agent', detail: 'Execution layer for local actions, files, apps, and workflow chains.', status: 'Ready' },
-  { id: 'f-3', name: 'Luna Core', detail: 'Visible operator surface that translates system intelligence into clean interaction.', status: 'Online' },
 ];

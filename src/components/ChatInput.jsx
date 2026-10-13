@@ -9,6 +9,8 @@ export default function ChatInput({
   attachment,
   onClearAttachment,
   centered = false,
+  busy = false,
+  attachmentBusy = false,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const fileInputRef = useRef(null);
@@ -69,10 +71,10 @@ export default function ChatInput({
   }
 
   function handleKeyDown(event) {
-    if (event.isComposing) return;
+    if (event.nativeEvent?.isComposing || event.isComposing) return;
     if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey) {
       event.preventDefault();
-      onSend();
+      if (!busy && !attachmentBusy && (value.trim() || attachment)) onSend();
     }
   }
 
@@ -87,6 +89,7 @@ export default function ChatInput({
           onClick={() => setMenuOpen((current) => !current)}
           aria-label="Přidat přílohu nebo akci"
           aria-expanded={menuOpen}
+          disabled={attachmentBusy}
         >
           +
         </button>
@@ -120,7 +123,8 @@ export default function ChatInput({
           rows={1}
         />
       </div>
-      <button className="send-button" type="button" onClick={() => onSend()}>Odeslat</button>
+      <button className="send-button" type="button" disabled={busy || attachmentBusy || (!value.trim() && !attachment)} onClick={() => onSend()}>{busy ? 'Čekej…' : 'Odeslat'}</button>
+      {(busy || attachmentBusy) && <span className="composer-status" role="status">{attachmentBusy ? 'Připravuji snímek obrazovky…' : 'Luna odpovídá. Další zprávu si můžeš zatím rozepsat.'}</span>}
     </div>
   );
 }

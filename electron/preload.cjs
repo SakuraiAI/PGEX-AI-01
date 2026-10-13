@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('lunaDesktop', {
   window: {
@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('lunaDesktop', {
     openExternal: (url) => ipcRenderer.invoke('shell:open-external', url),
   },
   files: {
+    getPathForFile: (file) => webUtils.getPathForFile(file),
     readAsDataUrl: (filePath) => ipcRenderer.invoke('files:read-as-data-url', filePath),
     writeTempDataUrl: (payload) => ipcRenderer.invoke('files:write-temp-data-url', payload),
   },

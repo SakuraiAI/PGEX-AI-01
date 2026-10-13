@@ -46,3 +46,26 @@ img.luna-avatar{object-fit:cover;object-position:50% 35%;padding:0}
 .advanced-settings{grid-column:1 / -1;border:1px solid var(--line);border-radius:14px;padding:16px}.advanced-settings>summary{cursor:pointer;font-weight:600;padding:8px}.advanced-settings>.panel-card{margin-top:16px}
 
 .settings-page-grid{grid-template-rows:auto auto;align-content:start}.advanced-settings{align-self:start}
+
+/* Chat feedback and readable Markdown */
+.send-button:disabled { opacity: .55; cursor: default; }
+.composer-status { grid-column: 1 / -1; color: var(--text-soft); font-size: 12px; }
+.chat-error { align-self: center; width: 100%; max-width: 1050px; padding: 12px 16px; border: 1px solid #b56767; border-radius: 12px; background: #2e1d22; color: #ffe1e1; }
+.chat-error p { margin: 0 0 8px; overflow-wrap: anywhere; }
+.chat-error button { background: #492c33; color: inherit; border: 1px solid #b56767; border-radius: 6px; padding: 6px 10px; margin-right: 8px; }
+.chat-error button:disabled { opacity: .5; }
+.chat-error small { display: block; margin-top: 8px; }
+.message-content { min-width: 0; overflow-wrap: anywhere; line-height: 1.65; }
+.message-content p { white-space: pre-wrap; margin: 8px 0; }
+.message-content ul, .message-content ol { padding-left: 24px; margin: 10px 0; }
+.message-content h1, .message-content h2, .message-content h3 { font-size: 1.15em; margin: 14px 0 8px; }
+.message-content blockquote { border-left: 3px solid #86b5d7; margin: 12px 0; padding-left: 14px; }
+.message-content table { display: block; overflow-x: auto; border-collapse: collapse; max-width: 100%; }
+.message-content th, .message-content td { border: 1px solid #484b53; padding: 7px 10px; }
+.message-content code { font-family: Consolas, monospace; background: #101216; border-radius: 4px; padding: 2px 4px; }
+.message-code { max-width: 100%; margin: 12px 0; background: #101216; border: 1px solid #383c43; border-radius: 8px; padding: 10px; }
+.message-code pre { margin: 8px 0 0; overflow-x: auto; white-space: pre; }
+.message-code code { padding: 0; }
+.copy-control { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--text-soft); margin-top: 8px; }
+.copy-control button { background: transparent; color: #abcde9; border: 1px solid #454a55; border-radius: 6px; padding: 4px 8px; cursor: pointer; }
+.message-bubble { min-width: 0; }

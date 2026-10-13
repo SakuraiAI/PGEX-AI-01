@@ -7,7 +7,6 @@ import ChatInput from './components/ChatInput';
 import ContextMenu from './components/ContextMenu';
 import NotificationsPanel from './components/NotificationsPanel';
 import ProjectModal from './components/ProjectModal';
-import VoiceSessionOverlay from './components/VoiceSessionOverlay';
 import EyesPage from './pages/EyesPage';
 import SectionPage from './pages/SectionPage';
 import SettingsPage from './pages/SettingsPage';
@@ -61,100 +60,6 @@ const defaultRuntimeSettings = {
   memoryLimit: 50,
 };
 
-const spokenTextLimit = 720;
-
-function detectSpeechLanguage(text) {
-  // NVIDIA Magpie currently sounds more stable when the language follows the configured voice.
-  // Forcing cs-CZ on an English voice makes Czech speech noticeably robotic.
-  void text;
-  return 'en-US';
-}
-
-function shapeTextForSpeech(text) {
-  let value = normalizeTransportText(text || '')
-    .replace(/\[Model debug\][\s\S]*$/i, '')
-    .replace(/```[\s\S]*?```/g, 'Kód přeskočím, ať se to dobře poslouchá.')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/\*([^*]+)\*/g, '$1')
-    .replace(/#{1,6}\s*/g, '')
-    .replace(/\[(.*?)\]\((.*?)\)/g, '$1')
-    .replace(/https?:\/\/\S+/gi, 'odkaz')
-    .replace(/^\s*(Luna|Xeno)\s*:\s*/i, '')
-    .replace(/\s+(Luna|Xeno)\s*:\s*/gi, ' ')
-    .replace(/[•*_>#~|]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  if (!value) return '';
-
-  if (value.length > spokenTextLimit) {
-    const sentences = value.match(/[^.!?…]+[.!?…]+/g) || [];
-    const compact = [];
-    let total = 0;
-    for (const sentence of sentences) {
-      const next = sentence.trim();
-      if (!next) continue;
-      if (total + next.length > spokenTextLimit) break;
-      compact.push(next);
-      total += next.length + 1;
-      if (compact.length >= 4) break;
-    }
-    value = compact.length ? compact.join(' ') : `${value.slice(0, spokenTextLimit).trim()}...`;
-  }
-
-  return value
-    .replace(/\s*([.!?…])\s*/g, '$1 ')
-    .replace(/\s*,\s*/g, ', ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function normalizeIntentText(value) {
-  return normalizeTransportText(value || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function shouldForceVoiceActionExecution(value) {
-  const text = normalizeIntentText(value);
-  if (!text) return false;
-
-  const destructiveSignals = [
-    'smaz',
-    'vymaz',
-    'delete',
-    'remove',
-    'klik',
-    'click',
-    'napis',
-    'type',
-    'prepis',
-    'overwrite',
-    'append',
-  ];
-  if (destructiveSignals.some((signal) => text.includes(signal))) {
-    return false;
-  }
-
-  return /^(otevri|otevrit|open|spust|spustit|start|launch|zapni|zapnout|run)\b/.test(text);
-}
-
-function isStartDesktopShareIntent(value) {
-  const text = normalizeIntentText(value);
-  if (!text) return false;
-
-  const hasShareWord = /\b(share|shere|sdileni|sdilet|sdilej)\b/.test(text);
-  const hasDesktopWord = /\b(desktop|deskop|screen|obrazovk\w*|monitor)\b/.test(text);
-  const hasStartWord = /\b(spust|spustit|sputil|pustim|pustit|pust|zapni|zapnout|start|startni|potrebuji|chci)\b/.test(text);
-
-  return hasShareWord && hasDesktopWord && hasStartWord;
-}
-
 const baseNotifications = [];
 
 function buildFallbackUpdateFeed(items, runtimeVersion = '0.1.0') {
@@ -191,12 +96,6 @@ function buildInitialChatThreads() {
 }
 
 
-function inferGeneratedMediaType(text, pendingGenerationType) {
-  if (pendingGenerationType) return pendingGenerationType;
-  if (/\b(video|clip|animation|motion)\b/i.test(text)) return 'video';
-  if (/\b(image|render|illustration|portrait|photo|poster)\b/i.test(text)) return 'image';
-  return '';
-}
 
 function toLocalFileUrl(filePath) {
   const normalized = String(filePath || '').trim().replace(/\\/g, '/');
@@ -406,35 +305,6 @@ const idleThinkingState = {
   tracks: [],
 };
 
-function normalizeCoordinationState(coordination, fallbackText = '') {
-  if (!coordination || typeof coordination !== 'object') {
-    return fallbackText ? createThinkingState(fallbackText) : idleThinkingState;
-  }
-
-  const lunaActive = Boolean(coordination.lunaActive);
-  const xenoActive = Boolean(coordination.xenoActive);
-  const tracks = Array.isArray(coordination.tracks)
-    ? coordination.tracks
-      .map((item) => ({
-        speaker: String(item?.speaker || '').trim(),
-        title: String(item?.title || item?.speaker || '').trim(),
-        note: String(item?.note || '').trim(),
-      }))
-      .filter((item) => item.speaker && item.note)
-    : [];
-
-  if (!lunaActive && !xenoActive && tracks.length === 0) {
-    return fallbackText ? createThinkingState(fallbackText) : idleThinkingState;
-  }
-
-  return {
-    visible: true,
-    lunaActive,
-    xenoActive,
-    tracks,
-  };
-}
-
 function buildRendererFallbackMeta() {
   const ua = navigator.userAgent || '';
   const platform = navigator.userAgentData?.platform || navigator.platform || 'desktop';
@@ -494,27 +364,18 @@ export default function App() {
   const [seenUpdateVersion, setSeenUpdateVersion] = useState(() => window.localStorage.getItem(STORAGE_KEYS.seenUpdateVersion) || '');
   const [updateFeed, setUpdateFeed] = useState(() => buildFallbackUpdateFeed(updates, fallbackMeta.version));
   const [projectModalOpen, setProjectModalOpen] = useState(false);
-  const [pendingGenerationType, setPendingGenerationType] = useState('');
   const [projectName, setProjectName] = useState('');
   const [projectType, setProjectType] = useState('investing');
   const [chatBusy, setChatBusy] = useState(false);
+  const sendLockRef = useRef(false);
+  const [chatError, setChatError] = useState(null);
+  const [sendingMessage, setSendingMessage] = useState(null);
   const [eyesBusy, setEyesBusy] = useState(false);
-  const [micRecording, setMicRecording] = useState(false);
-  const [speechPlaying, setSpeechPlaying] = useState(false);
-  const [voiceLoopEnabled, setVoiceLoopEnabled] = useState(false);
-  const [assistantModeEnabled, setAssistantModeEnabled] = useState(false);
   const [thinkingState, setThinkingState] = useState(idleThinkingState);
-  const [revealingMessage, setRevealingMessage] = useState(null);
   const [pendingAction, setPendingAction] = useState({ active: false, title: '' });
   const [actionEnginePending, setActionEnginePending] = useState({ active: false, title: '' });
   const messages = currentChatId ? chatMessages[currentChatId] || [] : [];
-  const revealTimerRef = useRef(null);
-  const revealActiveRef = useRef(false);
   const announcedUpdateVersionRef = useRef('');
-  const messagesRef = useRef(messages);
-  const micSessionRef = useRef(null);
-  const speechPlaybackRef = useRef(null);
-  const voiceLoopRef = useRef(false);
 
   const notifications = useMemo(() => {
     const items = [...baseNotifications];
@@ -544,13 +405,7 @@ export default function App() {
     }
   }, [attachment]);
 
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
 
-  useEffect(() => {
-    voiceLoopRef.current = voiceLoopEnabled;
-  }, [voiceLoopEnabled]);
 
   useEffect(() => {
     const screenshotPath = String(desktopObservation?.screenshot_path || '').trim();
@@ -695,12 +550,6 @@ export default function App() {
   const regularChats = useMemo(() => filteredChats.filter((chat) => !chat.projectId), [filteredChats]);
   const visibleProjects = useMemo(() => projects.filter((project) => !project.archived).sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || (a.title || '').localeCompare(b.title || '')), [projects]);
 
-  function clearRevealTimer() {
-    if (revealTimerRef.current) {
-      window.cancelAnimationFrame(revealTimerRef.current);
-      revealTimerRef.current = null;
-    }
-  }
 
   function applyChatState(result, overrideMessages = null) {
     if (!result?.ok) return false;
@@ -758,48 +607,6 @@ export default function App() {
     return true;
   }
 
-  function startAssistantReveal({ chatId, author = 'Luna', fullText, commit }) {
-    clearRevealTimer();
-    const normalizedText = String(fullText || '').trim();
-    if (!normalizedText) {
-      revealActiveRef.current = false;
-      commit?.();
-      return;
-    }
-
-    revealActiveRef.current = true;
-    setRevealingMessage({ chatId, author, content: '', fullText: normalizedText });
-    let index = 0;
-    let lastTick = 0;
-
-    const step = (timestamp) => {
-      if (!lastTick) lastTick = timestamp;
-      const elapsed = timestamp - lastTick;
-      if (elapsed >= 32) {
-        lastTick = timestamp;
-        const nextChunk = Math.max(2, Math.ceil(normalizedText.length / 56));
-        index = Math.min(normalizedText.length, index + nextChunk);
-        const nextContent = normalizedText.slice(0, index);
-        setRevealingMessage({ chatId, author, content: nextContent, fullText: normalizedText });
-      }
-
-      if (index >= normalizedText.length) {
-        clearRevealTimer();
-        revealActiveRef.current = false;
-        setRevealingMessage(null);
-        commit?.();
-        if (voiceLoopRef.current) {
-          handleTextToSpeech(normalizedText);
-        }
-        return;
-      }
-
-      revealTimerRef.current = window.requestAnimationFrame(step);
-    };
-
-    revealTimerRef.current = window.requestAnimationFrame(step);
-  }
-
   function applyBackendChatState(result) {
     return applyChatState(result);
   }
@@ -808,7 +615,7 @@ export default function App() {
     const api = window.lunaDesktop?.luna;
     if (!api?.observeDesktop) {
       if (!silent) {
-        setStatus('Desktop observe works only inside the Electron desktop shell.');
+        setChatError({ message: 'Snímek obrazovky je dostupný v desktopové aplikaci PGEX.' });
       }
       return null;
     }
@@ -844,8 +651,8 @@ export default function App() {
 
       if (!silent) {
         const detail = String(result?.observation?.detail || '').trim();
-        if (includeScreenshot && !screenshotPath && detail) {
-          setStatus(detail);
+        if (includeScreenshot && !screenshotPath) {
+          setChatError({ message: detail || 'Snímek obrazovky se nepodařilo pořídit.' });
         } else {
           setStatus(includeScreenshot
             ? 'Aktualni obrazovka je pripravena jako sdileny kontext pro dalsi zpravu.'
@@ -855,7 +662,7 @@ export default function App() {
       return result;
     } catch {
       if (!silent) {
-        setStatus(includeScreenshot ? 'Screenshot capture selhal.' : 'Desktop observation failed.');
+        setChatError({ message: 'Obrazovku se nepodařilo načíst. Zkus pořídit snímek znovu.' });
       }
       return null;
     } finally {
@@ -899,52 +706,6 @@ export default function App() {
     }
   }
 
-  async function startAssistantMode() {
-    setAssistantModeEnabled(true);
-    setPage('chat');
-    setStatus('Assistant mode se zapina: voice, screenshot/document vision a agent se spojuji do jednoho rezimu.');
-    await window.lunaDesktop?.window?.showAssistantOverlay?.();
-
-    await requestDesktopObservation(true, { silent: true });
-
-    if (!voiceLoopRef.current) {
-      voiceLoopRef.current = true;
-      setVoiceLoopEnabled(true);
-      if (!micSessionRef.current) {
-        window.setTimeout(() => startMicrophoneCapture(), 0);
-      }
-    }
-
-    setStatus('Assistant mode bezi. Luna posloucha, Xeno drzi plan a vision pouziva aktualni screenshoty nebo prilozene dokumenty.');
-  }
-
-  async function stopAssistantMode() {
-    setAssistantModeEnabled(false);
-    await window.lunaDesktop?.window?.hideAssistantOverlay?.();
-    voiceLoopRef.current = false;
-    setVoiceLoopEnabled(false);
-    if (micSessionRef.current) {
-      window.setTimeout(() => stopMicrophoneCapture(), 0);
-    }
-    stopSpeechPlayback();
-    if (observeModeEnabled) {
-      await updateObserveMode(false, { silent: true });
-    }
-    setStatus('Assistant mode vypnuty. Luna zustava v beznem chat rezimu.');
-  }
-
-  function toggleAssistantMode() {
-    if (assistantModeEnabled) {
-      stopAssistantMode();
-    } else {
-      startAssistantMode();
-    }
-  }
-
-  useEffect(() => () => {
-    clearRevealTimer();
-    revealActiveRef.current = false;
-  }, []);
 
   useEffect(() => {
     const api = window.lunaDesktop?.updates;
@@ -1096,155 +857,84 @@ export default function App() {
     return chatId;
   }
 
-  async function handleSend(overrideText = '', options = {}) {
+  async function handleSend(overrideText = '') {
     const safeOverrideText = typeof overrideText === 'string' ? overrideText : '';
-    const sendOptions = options && typeof options === 'object' ? options : {};
     const text = normalizeTransportText(safeOverrideText || composer).trim();
-    if ((!text && !attachment?.name) || chatBusy) return;
+    if ((!text && !attachment?.name) || sendLockRef.current || chatBusy || eyesBusy) return;
 
     const api = window.lunaDesktop?.luna;
-    const activeChatId = ensureActiveChat();
-    const normalizedAttachmentName = normalizeTransportText(attachment?.name || '');
-    const baseText = text || 'Attachment prepared for LunaAI.';
-    const decoratedText = normalizedAttachmentName ? `${baseText}
-
-[Attached file: ${normalizedAttachmentName}]` : baseText;
-
-    if (isStartDesktopShareIntent(baseText)) {
-      appendMessages(activeChatId, [
-        { id: `user-${Date.now()}`, role: 'user', author: 'You', content: decoratedText },
-        {
-          id: `assistant-${Date.now() + 1}`,
-          role: 'assistant',
-          author: 'Luna',
-          content: 'Luna: Desktop share teď nebudeme používat jako hlavní režim. Pro vision mi pošli soubor přes Add file, nebo použij Capture screenshot a já ho zanalyzuju jako aktuální vizuální kontext.',
-        },
-      ]);
-      setComposer('');
-      setAttachment(null);
-      setPendingDesktopContext(null);
-      setPendingGenerationType('');
-      setPage('chat');
-      setStatus('Vision mode je nastavený na dokumenty, obrázky a jednorázové screenshoty.');
+    if (!api?.sendMessage) {
+      setChatError({ message: 'Připojení k Luně není dostupné. Otevři PGEX jako desktopovou aplikaci.' });
+      return;
+    }
+    if (attachment && !attachment.path) {
+      setChatError({ message: 'Přílohu se nepodařilo načíst. Odeber ji a vyber soubor znovu.' });
       return;
     }
 
-    const filePaths = [
-      ...(attachment?.path ? [attachment.path] : []),
-    ];
+    // Capture this request before clearing the composer. A new draft may be
+    // written while awaiting the response and must never be cleared afterward.
+    const draft = {
+      text,
+      attachment: attachment ? { ...attachment, previewUrl: '' } : null,
+      context: pendingDesktopContext,
+    };
+    const baseText = text || 'Prosím zpracuj přiložený soubor.';
+    const decoratedText = attachment?.name
+      ? `${baseText}\n\n[Příloha: ${normalizeTransportText(attachment.name)}]`
+      : baseText;
+    const activeChatId = ensureActiveChat();
+    const filePaths = attachment?.path ? [attachment.path] : [];
     const extraContext = [
-      sendOptions.source === 'voice'
-        ? 'Input source: voice. Voice mode: user is speaking conversationally. Reply naturally for speech output.'
-        : '',
       String(pendingDesktopContext?.context || '').trim(),
     ].filter(Boolean).join('\n\n');
-    const mediaType = inferGeneratedMediaType(baseText, pendingGenerationType);
 
-    if (api?.sendMessage) {
-      setChatBusy(true);
-      setThinkingState(createThinkingState(baseText));
-      try {
-        const result = await api.sendMessage({
-          chatId: activeChatId,
-          text: decoratedText,
-          filePaths,
-          extraContext,
-          forceActionExecution: sendOptions.source === 'voice' && shouldForceVoiceActionExecution(baseText),
-        });
-        if (handleBackendResponseResult(result, 'Luna backend replied.')) {
-          // handled above
-        } else {
-          appendMessages(activeChatId, [
-            { id: `user-${Date.now()}`, role: 'user', author: 'You', content: decoratedText },
-            { id: `assistant-${Date.now() + 1}`, role: 'assistant', author: 'Luna', content: result?.message || 'Luna backend did not return a valid reply.' },
-          ]);
-          setStatus(result?.message || 'Luna backend did not return a valid reply.');
-        }
-      } catch {
-        appendMessages(activeChatId, [
-          { id: `user-${Date.now()}`, role: 'user', author: 'You', content: decoratedText },
-          { id: `assistant-${Date.now() + 1}`, role: 'assistant', author: 'Luna', content: 'Spojeni s backendem se nepovedlo.' },
-        ]);
-        setStatus('Backend bridge failed.');
-      } finally {
-        setChatBusy(false);
-        if (!revealActiveRef.current) {
-          setThinkingState((current) => (current.visible ? idleThinkingState : current));
-        }
-      }
-    } else {
-      const fallbackResponse = mediaType
-        ? `Luna prepared a ${mediaType} concept. Visual outputs now belong in the project workspace or as attachments for vision analysis.`
-        : 'React + Electron shell accepted the request. IPC is prepared so Luna can later forward this to local AI, Xeno, or agent logic.';
-
-      setThinkingState(createThinkingState(baseText));
-      appendMessages(activeChatId, [
-        { id: `user-${Date.now()}`, role: 'user', author: 'You', content: decoratedText },
-      ]);
-      setChats((current) => current.map((chat) => (
-        chat.id === activeChatId && chat.title === 'New Chat' && text
-          ? { ...chat, title: text.slice(0, 36) }
-          : chat
-      )));
-      const requestedSpeaker = getRequestedSpeaker(baseText);
-      const revealAuthor = requestedSpeaker === 'Xeno' ? 'Xeno' : 'Luna';
-
-      startAssistantReveal({
-        chatId: activeChatId,
-        author: revealAuthor,
-        fullText: fallbackResponse,
-        commit: () => {
-          appendMessages(activeChatId, [
-            {
-              id: `assistant-${Date.now() + 1}`,
-              role: 'assistant',
-              author: revealAuthor,
-              content: fallbackResponse,
-            },
-          ]);
-          setThinkingState(idleThinkingState);
-          setStatus('Message routed through the LunaAI renderer shell.');
-        },
-      });
-    }
-
+    sendLockRef.current = true;
+    setChatBusy(true);
+    setChatError(null);
     setComposer('');
     setAttachment(null);
     setPendingDesktopContext(null);
-    setPendingGenerationType('');
     setPage('chat');
+    setSendingMessage({ id: `sending-${Date.now()}`, chatId: activeChatId, role: 'user', author: 'Ty', content: decoratedText });
+    setThinkingState(createThinkingState(baseText));
+    try {
+      const result = await api.sendMessage({
+        chatId: activeChatId,
+        text: decoratedText,
+        filePaths,
+        extraContext,
+      });
+      if (!result?.ok) {
+        setChatError({ message: result?.message || 'Luna nevrátila odpověď. Zkontroluj připojení a nastavení modelu.', draft });
+        setThinkingState(idleThinkingState);
+        return;
+      }
+      handleBackendResponseResult(result, 'Odpověď je připravená.');
+    } catch {
+      setChatError({ message: 'Spojení s Lunou se nepodařilo. Zprávu můžeš vrátit k úpravě a odeslat znovu.', draft });
+      setThinkingState(idleThinkingState);
+    } finally {
+      setSendingMessage(null);
+      sendLockRef.current = false;
+      setChatBusy(false);
+      setThinkingState(idleThinkingState);
+    }
   }
 
+  function restoreFailedDraft() {
+    if (!chatError?.draft || composer.trim() || attachment) return;
+    setComposer(chatError.draft.text);
+    setAttachment(chatError.draft.attachment);
+    setPendingDesktopContext(chatError.draft.context);
+    setChatError(null);
+  }
 
   function handleBackendResponseResult(result, successStatus) {
     if (!result?.ok) {
       setThinkingState(idleThinkingState);
       setStatus(result?.message || 'Luna backend did not return a valid reply.');
       return false;
-    }
-
-    const backendMessages = Array.isArray(result.messages) ? result.messages : [];
-    const lastBackendMessage = backendMessages[backendMessages.length - 1];
-    const canRevealAssistant = lastBackendMessage?.role === 'assistant' && String(lastBackendMessage.content || '').trim();
-    const coordinationState = normalizeCoordinationState(
-      result?.coordination,
-      String(lastBackendMessage?.content || ''),
-    );
-
-    if (canRevealAssistant) {
-      applyChatState(result, backendMessages.slice(0, -1));
-      setThinkingState(coordinationState);
-      startAssistantReveal({
-        chatId: result.currentChatId || currentChatId,
-        author: lastBackendMessage.author || 'Luna',
-        fullText: lastBackendMessage.content,
-        commit: () => {
-          applyBackendChatState(result);
-          setThinkingState(idleThinkingState);
-          setStatus(successStatus);
-        },
-      });
-      return true;
     }
 
     applyBackendChatState(result);
@@ -1270,9 +960,7 @@ export default function App() {
         setStatus(kind === 'confirm' ? 'Action Engine confirmation failed.' : 'Action Engine cancellation failed.');
       } finally {
         setChatBusy(false);
-        if (!revealActiveRef.current) {
-          setThinkingState((current) => (current.visible ? idleThinkingState : current));
-        }
+        setThinkingState(idleThinkingState);
       }
       return;
     }
@@ -1300,9 +988,7 @@ export default function App() {
       setStatus(kind === 'confirm' ? 'Potvrzeni akce selhalo.' : 'Zruseni akce selhalo.');
     } finally {
       setChatBusy(false);
-      if (!revealActiveRef.current) {
-        setThinkingState((current) => (current.visible ? idleThinkingState : current));
-      }
+      setThinkingState(idleThinkingState);
     }
   }
 
@@ -1363,7 +1049,7 @@ export default function App() {
     }
     setComposer('');
     setAttachment(null);
-    setPendingGenerationType('');
+
     setPage('chat');
   }
 
@@ -1510,351 +1196,25 @@ export default function App() {
     setNotificationsOpen(false);
   }
 
-  async function startMicrophoneCapture() {
-    const fileApi = window.lunaDesktop?.files;
-    const lunaApi = window.lunaDesktop?.luna;
-    if (!navigator.mediaDevices?.getUserMedia || !fileApi?.writeTempDataUrl || !lunaApi?.transcribeAudio) {
-      setStatus('Microphone transcription works only inside the Electron shell with backend STT connected.');
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      const audioContext = new AudioContextClass();
-      const source = audioContext.createMediaStreamSource(stream);
-      const processor = audioContext.createScriptProcessor(4096, 1, 1);
-      const silentGain = audioContext.createGain();
-      const chunks = [];
-
-      silentGain.gain.value = 0;
-      processor.onaudioprocess = (event) => {
-        const input = event.inputBuffer.getChannelData(0);
-        chunks.push(new Float32Array(input));
-        if (!voiceLoopRef.current || micSessionRef.current?.autoStopping) return;
-
-        let sum = 0;
-        for (let index = 0; index < input.length; index += 1) {
-          sum += input[index] * input[index];
-        }
-        const rms = Math.sqrt(sum / Math.max(1, input.length));
-        const session = micSessionRef.current;
-        if (!session) return;
-        const now = Date.now();
-        if (rms > 0.018) {
-          session.heardSpeech = true;
-          session.lastVoiceAt = now;
-        }
-        if (session.heardSpeech && now - session.lastVoiceAt > 1100) {
-          session.autoStopping = true;
-          window.setTimeout(() => stopMicrophoneCapture(), 0);
-        }
-      };
-
-      source.connect(processor);
-      processor.connect(silentGain);
-      silentGain.connect(audioContext.destination);
-
-      micSessionRef.current = {
-        stream,
-        audioContext,
-        source,
-        processor,
-        silentGain,
-        chunks,
-        sampleRate: audioContext.sampleRate,
-        heardSpeech: false,
-        lastVoiceAt: Date.now(),
-        autoStopping: false,
-      };
-      setMicRecording(true);
-      setStatus('Listening... click the microphone again to transcribe.');
-    } catch (error) {
-      setMicRecording(false);
-      micSessionRef.current = null;
-      setStatus(`Microphone could not start: ${String(error?.message || error)}`);
-    }
-  }
-
-  async function stopMicrophoneCapture() {
-    const session = micSessionRef.current;
-    micSessionRef.current = null;
-    setMicRecording(false);
-    if (!session) return;
-
-    try {
-      session.processor.disconnect();
-      session.source.disconnect();
-      session.silentGain.disconnect();
-    } catch {
-      // Best effort cleanup.
-    }
-    session.stream.getTracks().forEach((track) => track.stop());
-    await session.audioContext.close().catch(() => {});
-
-    if (!session.chunks.length) {
-      setStatus('No microphone audio was captured.');
-      return;
-    }
-
-    try {
-      setStatus('Transcribing microphone audio...');
-      const merged = mergeFloat32Chunks(session.chunks);
-      const downsampled = downsampleFloat32Buffer(merged, session.sampleRate, 16000);
-      const wavBlob = encodePcm16Wav(downsampled, 16000);
-      const dataUrl = await blobToDataUrl(wavBlob);
-      const fileResult = await window.lunaDesktop.files.writeTempDataUrl({
-        dataUrl,
-        extension: 'wav',
-      });
-
-      if (!fileResult?.ok || !fileResult?.path) {
-        setStatus(fileResult?.message || 'Microphone audio could not be saved.');
-        return;
-      }
-
-      const result = await window.lunaDesktop.luna.transcribeAudio({
-        filePath: fileResult.path,
-        language: 'cs-CZ',
-      });
-      const transcript = normalizeTransportText(result?.transcript || '').trim();
-      if (!result?.ok || !transcript) {
-        setStatus(result?.message || 'Speech transcription did not return text.');
-        return;
-      }
-
-      if (voiceLoopRef.current) {
-        setComposer('');
-        setStatus('Voice loop heard you. Sending it to Luna/Xeno...');
-        await handleSend(transcript, { source: 'voice' });
-        return;
-      }
-
-      setComposer((current) => {
-        const prefix = current.trim() ? `${current.trim()} ` : '';
-        return `${prefix}${transcript}`;
-      });
-      setStatus('Speech transcription inserted into the message box.');
-    } catch (error) {
-      setStatus(`Speech transcription failed: ${String(error?.message || error)}`);
-    }
-  }
-
-  function toggleMicrophoneCapture() {
-    if (micRecording) {
-      stopMicrophoneCapture();
-    } else {
-      startMicrophoneCapture();
-    }
-  }
-
-  function handleVoiceSessionTalk() {
-    if (speechPlaying) {
-      stopSpeechPlayback();
-      setStatus('Luna stopped speaking. Listening again...');
-      if (!micSessionRef.current) {
-        window.setTimeout(() => startMicrophoneCapture(), 0);
-      }
-      return;
-    }
-
-    toggleMicrophoneCapture();
-  }
-
-  function stopSpeechPlayback() {
-    const currentAudio = speechPlaybackRef.current;
-    if (currentAudio) {
-      currentAudio.pause();
-      currentAudio.currentTime = 0;
-      speechPlaybackRef.current = null;
-    }
-    setSpeechPlaying(false);
-  }
-
-  function closeVoiceSession() {
-    setAssistantModeEnabled(false);
-    window.lunaDesktop?.window?.hideAssistantOverlay?.();
-    voiceLoopRef.current = false;
-    setVoiceLoopEnabled(false);
-    if (micSessionRef.current) {
-      stopMicrophoneCapture();
-    }
-    stopSpeechPlayback();
-    setStatus('Voice session closed.');
-  }
-
-  async function playGeneratedSpeech(audioPath) {
-    const fileApi = window.lunaDesktop?.files;
-    if (!fileApi?.readAsDataUrl) {
-      setStatus('Audio playback works only inside the Electron desktop shell.');
-      return;
-    }
-
-    const audioResult = await fileApi.readAsDataUrl(audioPath);
-    if (!audioResult?.ok || !audioResult?.dataUrl) {
-      setStatus(audioResult?.message || 'Generated speech audio could not be loaded.');
-      return;
-    }
-
-    stopSpeechPlayback();
-    const audio = new Audio(audioResult.dataUrl);
-    speechPlaybackRef.current = audio;
-    setSpeechPlaying(true);
-    audio.onended = () => {
-      if (speechPlaybackRef.current === audio) {
-        speechPlaybackRef.current = null;
-        setSpeechPlaying(false);
-      }
-      if (voiceLoopRef.current) {
-        window.setTimeout(() => {
-          if (voiceLoopRef.current && !micSessionRef.current) {
-            startMicrophoneCapture();
-          }
-        }, 450);
-      }
-    };
-    audio.onerror = () => {
-      if (speechPlaybackRef.current === audio) {
-        speechPlaybackRef.current = null;
-        setSpeechPlaying(false);
-      }
-      setStatus('Generated speech audio could not be played.');
-    };
-    await audio.play();
-  }
-
-  function getTextForSpeech(overrideText = '') {
-    const typedText = normalizeTransportText(overrideText || composer).trim();
-    if (typedText) return typedText;
-
-    for (let index = messages.length - 1; index >= 0; index -= 1) {
-      const message = messages[index];
-      if (message?.role !== 'user' && String(message?.content || '').trim()) {
-        return normalizeTransportText(message.content).trim();
-      }
-    }
-    return '';
-  }
-
-  function cleanTextForSpeech(text) {
-    return shapeTextForSpeech(text);
-  }
-
-  async function handleTextToSpeech(overrideText = '') {
-    if (speechPlaying) {
-      stopSpeechPlayback();
-      setStatus('Speech playback stopped.');
-      return;
-    }
-
-    const lunaApi = window.lunaDesktop?.luna;
-    if (!lunaApi?.synthesizeSpeech) {
-      setStatus('Text-to-speech works only inside the Electron shell with NVIDIA TTS connected.');
-      return;
-    }
-
-    const text = cleanTextForSpeech(getTextForSpeech(overrideText));
-    if (!text) {
-      setStatus('Write text first, or keep a Luna/Xeno answer in the chat to read aloud.');
-      return;
-    }
-
-    try {
-      setStatus('Generating voice with NVIDIA Magpie...');
-      const result = await lunaApi.synthesizeSpeech({
-        text,
-        language: detectSpeechLanguage(text),
-      });
-      if (!result?.ok || !result?.audioPath) {
-        setStatus(result?.message || 'Text-to-speech did not return audio.');
-        return;
-      }
-      await playGeneratedSpeech(result.audioPath);
-      setStatus('Playing generated voice.');
-    } catch (error) {
-      setSpeechPlaying(false);
-      setStatus(`Text-to-speech failed: ${String(error?.message || error)}`);
-    }
-  }
-
   function handleInputAction(action, payload) {
     if (action === 'file' && payload) {
-      const isVisualAttachment = Boolean(
-        payload.type?.startsWith('image/')
-        || payload.type?.startsWith('video/'),
-      );
-      const nextAttachment = {
-        name: payload.name,
-        type: payload.type || '',
-        path: payload.path || '',
-        previewUrl: payload.type?.startsWith('image/') ? URL.createObjectURL(payload) : '',
-      };
-      setAttachment((current) => {
-        if (current?.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(current.previewUrl);
-        return nextAttachment;
-      });
-      setStatus(
-        isVisualAttachment
-          ? `Prilozeno: ${payload.name}. Po odeslani to Luna a Xeno analyzuji pres vision model.`
-          : `Attached file: ${payload.name}`,
-      );
+      try {
+        const path = window.lunaDesktop?.files?.getPathForFile?.(payload);
+        if (!path) throw new Error('missing path');
+        setAttachment({
+          name: payload.name,
+          type: payload.type || '',
+          path,
+          previewUrl: payload.type?.startsWith('image/') ? URL.createObjectURL(payload) : '',
+        });
+        setPendingDesktopContext(null);
+        setChatError(null);
+      } catch {
+        setChatError({ message: 'Soubor se nepodařilo přiložit. Otevři desktopovou aplikaci PGEX a vyber soubor z disku.' });
+      }
       return;
     }
-    if (action === 'screenshot') {
-      requestDesktopObservation(action === 'screenshot');
-      return;
-    }
-    if (action === 'share-screen') {
-      setPage('chat');
-      requestDesktopObservation(true);
-      return;
-    }
-    if (action === 'assistant-mode') {
-      toggleAssistantMode();
-      return;
-    }
-    if (action === 'hide-to-tray') {
-      handleWindowAction('hide-to-tray');
-      return;
-    }
-    if (action === 'image') {
-      setPendingGenerationType('image');
-      setComposer((current) => current || 'Generate a black-and-white futuristic image for LunaAI.');
-      setStatus('Image generation prompt loaded into the composer.');
-      return;
-    }
-    if (action === 'mic') {
-      toggleMicrophoneCapture();
-      return;
-    }
-    if (action === 'voice') {
-      setVoiceLoopEnabled((current) => {
-        const next = !current;
-        voiceLoopRef.current = next;
-        if (next && !micSessionRef.current) {
-          window.setTimeout(() => startMicrophoneCapture(), 0);
-        }
-        if (!next && micSessionRef.current) {
-          window.setTimeout(() => stopMicrophoneCapture(), 0);
-        }
-        if (!next) {
-          stopSpeechPlayback();
-        }
-        setStatus(next
-          ? 'Voice loop enabled: Mic will send your speech and Luna/Xeno will answer aloud.'
-          : 'Voice loop disabled. Voice button now reads text aloud manually.');
-        return next;
-      });
-      return;
-    }
-    if (action === 'speak') {
-      handleTextToSpeech();
-      return;
-    }
-    const messagesByAction = {
-      menu: 'Quick action surface is ready for file and image workflows.',
-    };
-    setStatus(messagesByAction[action] || 'Action prepared.');
+    if (action === 'screenshot') requestDesktopObservation(true);
   }
 
   async function handleSaveApplicationPath(appItem, nextPath) {
@@ -2033,16 +1393,27 @@ export default function App() {
         <div className={`chat-page ${isEmptyChat ? 'is-empty' : ''}`} >
           <div className="conversation-layout">
           <ChatArea
-            messages={messages}
+            messages={sendingMessage?.chatId === currentChatId ? [...messages, sendingMessage] : messages}
             chatId={currentChatId}
             thinkingState={thinkingState}
-            revealingMessage={revealingMessage?.chatId === currentChatId ? revealingMessage : null}
             pendingAction={combinedPendingAction}
             onConfirmPendingAction={() => handlePendingActionDecision('confirm')}
             onCancelPendingAction={() => handlePendingActionDecision('cancel')}
           />
           </div>
+          {chatError && (
+            <div className="chat-error" role="alert">
+              <p>{chatError.message}</p>
+              <div>
+                {chatError.draft && <button type="button" disabled={Boolean(composer.trim() || attachment)} onClick={restoreFailedDraft}>Vrátit zprávu k úpravě</button>}
+                <button type="button" onClick={() => setChatError(null)} aria-label="Zavřít chybu">Zavřít</button>
+              </div>
+              {chatError.draft && Boolean(composer.trim() || attachment) && <small>Pro obnovení zprávy nejprve odešli nebo vyprázdni aktuální rozepsanou zprávu.</small>}
+            </div>
+          )}
           <ChatInput
+            busy={chatBusy}
+            attachmentBusy={eyesBusy}
             value={composer}
             onChange={setComposer}
             onSend={handleSend}
@@ -2174,14 +1545,6 @@ export default function App() {
         onSelectType={setProjectType}
         onClose={handleCloseProjectModal}
         onCreate={handleCreateProject}
-      />
-      <VoiceSessionOverlay
-        visible={voiceLoopEnabled || micRecording || speechPlaying}
-        listening={micRecording}
-        speaking={speechPlaying}
-        thinking={chatBusy || thinkingState.visible}
-        onToggleListen={handleVoiceSessionTalk}
-        onClose={closeVoiceSession}
       />
     </>
   );
