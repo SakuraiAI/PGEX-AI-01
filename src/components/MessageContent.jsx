@@ -5,19 +5,6 @@ import { repairDisplayedText } from '../utils/textRepair';
 
 const plugins = [remarkGfm];
 
-function CopyButton({ text, label = 'Kopírovat' }) {
-  const [state, setState] = useState('');
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(text);
-      setState('Zkopírováno');
-    } catch {
-      setState('Kopírování se nezdařilo');
-    }
-  }
-  return <span className="copy-control"><button type="button" onClick={copy}>{label}</button><span role="status">{state}</span></span>;
-}
-
 function ExternalLink({ href, children }) {
   const safeHref = /^https?:\/\//i.test(href || '') ? href : undefined;
   const [failed, setFailed] = useState(false);
@@ -35,8 +22,7 @@ function ExternalLink({ href, children }) {
 }
 
 function CodeBlock({ children }) {
-  const code = String(children?.props?.children || '');
-  return <div className="message-code"><CopyButton text={code} label="Kopírovat kód" /><pre>{children}</pre></div>;
+  return <div className="message-code"><pre>{children}</pre></div>;
 }
 
 const components = {
@@ -50,6 +36,5 @@ export default function MessageContent({ content }) {
   const text = repairDisplayedText(content || '');
   return <div className="message-content">
     <ReactMarkdown remarkPlugins={plugins} components={components} skipHtml>{text}</ReactMarkdown>
-    <CopyButton text={text} label="Kopírovat zprávu" />
   </div>;
 }

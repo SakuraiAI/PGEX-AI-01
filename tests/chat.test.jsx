@@ -96,15 +96,12 @@ describe('Chat request lifecycle', () => {
 });
 
 describe('Readable and safe message rendering', () => {
-  it('renders headings, lists, tables and code, and copies exact code text', async () => {
-    const writeText = vi.fn().mockResolvedValue();
-    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+  it('renders headings, lists, tables and code', () => {
     render(<MessageContent content={'## Nadpis\n\n- jeden\n- dva\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n```js\nconst x = 1;\n```'} />);
     expect(screen.getByRole('heading', { name: 'Nadpis' })).toBeTruthy();
     expect(screen.getAllByRole('listitem')).toHaveLength(2);
     expect(screen.getByRole('table')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Kopírovat kód' }));
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith('const x = 1;\n'));
+    expect(screen.getByText('const x = 1;')).toBeTruthy();
   });
 
   it('blocks executable links, raw HTML and automatic remote images', () => {
@@ -114,14 +111,11 @@ describe('Readable and safe message rendering', () => {
     expect(container.querySelector('a[href^="javascript:"]')).toBeNull();
   });
 
-  it('opens HTTPS links through Electron and reports clipboard failure', async () => {
+  it('opens HTTPS links through Electron', () => {
     window.lunaDesktop = { shell: { openExternal: vi.fn().mockResolvedValue() } };
-    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) } });
     render(<MessageContent content={'[Dokumentace](https://example.com/docs)'} />);
     fireEvent.click(screen.getByRole('link', { name: 'Dokumentace' }));
     expect(window.lunaDesktop.shell.openExternal).toHaveBeenCalledWith('https://example.com/docs');
-    fireEvent.click(screen.getByRole('button', { name: 'Kopírovat zprávu' }));
-    await screen.findByText('Kopírování se nezdařilo');
   });
 });
 
