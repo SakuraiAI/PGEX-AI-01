@@ -5,7 +5,7 @@ export default function TopBar({ collapsed, onToggleSidebar, onWindowAction, onO
     <header className="topbar app-drag-region">
       <div className="topbar-left app-no-drag">
         <button type="button" className="topbar-toggle" onClick={onToggleSidebar} aria-label="Přepnout postranní panel" aria-expanded={!collapsed}>☰</button>
-        <div className="assistant-identity"><img className="luna-avatar" src={lunaPortrait} alt="" /><span>PGEX-AI-01</span></div>
+        <div className="assistant-identity"><img className="luna-avatar" src={lunaPortrait} alt="" /><span>PGEX</span></div>
       </div>
       <div className="topbar-right app-no-drag">
         {notificationCount > 0 && <button type="button" className="window-button" onClick={onOpenNotifications} aria-label={`Oznámení (${notificationCount})`}>♧ •</button>}

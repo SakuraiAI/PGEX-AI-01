@@ -4,7 +4,7 @@ from pathlib import Path
 from config.env import get_env_bool, get_env_int, get_env_str
 
 
-APP_NAME = get_env_str("LUNA_APP_NAME", "PGEX-AI-01")
+APP_NAME = get_env_str("LUNA_APP_NAME", "PGEX")
 APP_HOST = get_env_str("LUNA_APP_HOST", "127.0.0.1")
 APP_PORT = get_env_int("LUNA_APP_PORT", 8000)
 MODEL_TYPE = get_env_str("LUNA_MODEL_TYPE", "nvidia")

@@ -18,7 +18,7 @@ const __dirname = path.dirname(__filename);
 
 // Preserve existing chat storage and settings across the product rename.
 app.setPath('userData', path.join(app.getPath('appData'), 'lunaai-electron-shell'));
-app.setName('PGEX-AI-01');
+app.setName('PGEX');
 const rendererDevServerUrl = process.env.LUNA_ELECTRON_RENDERER_URL || 'http://127.0.0.1:5173';
 const useRendererDevServer = process.env.npm_lifecycle_event === 'dev'
   || process.env.LUNA_ELECTRON_USE_DEV_SERVER === '1';
@@ -326,11 +326,11 @@ function createTray() {
       `),
   );
   tray = new Tray(icon);
-  tray.setToolTip('PGEX-AI-01');
+  tray.setToolTip('PGEX');
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Zobrazit PGEX-AI-01', click: showMainWindow },
+    { label: 'Zobrazit PGEX', click: showMainWindow },
     {
-      label: 'Skrýt PGEX-AI-01',
+      label: 'Skrýt PGEX',
       click: () => {
         mainWindow?.hide();
       },
@@ -412,7 +412,7 @@ ipcMain.handle('window:hide-assistant-overlay', () => {
 ipcMain.handle('app:get-meta', () => {
   const metrics = readSystemMetrics();
   return {
-    appName: 'PGEX-AI-01',
+    appName: 'PGEX',
     version: app.getVersion(),
     platform: process.platform,
     deviceName: os.hostname(),

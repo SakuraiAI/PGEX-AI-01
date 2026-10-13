@@ -50,7 +50,7 @@ Work in progress.
 
 ## Praktické využití
 
-Asistentka se jmenuje Luna, aplikace a projekt PGEX-AI-01.
+Aplikace se jmenuje PGEX, asistentka Luna a repozitář projektu PGEX-AI-01.
 
 - **Texty a plánování:** „Rozděl tento úkol na kroky“ nebo „Uprav tento návrh e-mailu“.
 - **Čitelné soubory a kód:** přilož TXT, Markdown, Python nebo JavaScript a požádej o shrnutí či vysvětlení chyby.
