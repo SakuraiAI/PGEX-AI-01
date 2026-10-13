@@ -95,7 +95,12 @@ class AgentOrchestrator:
         layers = ["Luna"]
         if xeno_consulted:
             layers.append("Xeno")
-        if "Active desktop share:" in extra_context or "Current live vision summary" in extra_context:
+        if (
+            "Active desktop share:" in extra_context
+            or "Current live vision summary" in extra_context
+            or "Vision summary:" in extra_context
+            or "Attached file:" in extra_context
+        ):
             layers.append("Vision")
         if observer_context:
             layers.append("Desktop observer")
@@ -128,7 +133,7 @@ class AgentOrchestrator:
             )
         if "Vision" in active_layers:
             parts.append(
-                "Vision is active: treat the newest shared frame as the freshest visual truth and avoid relying on old screen descriptions."
+                "Vision is active: prefer the newest attached file, screenshot, or explicit vision summary over older screen descriptions."
             )
         if "Action planner" in active_layers:
             parts.append(
@@ -195,13 +200,13 @@ class AgentOrchestrator:
         lines = [session_context.strip()] if session_context.strip() else []
         if has_vision:
             lines.append(
-                "Visual freshness rule: screen summaries are temporary. Prefer the newest live desktop frame or newest attachment over older chat history."
+                "Visual freshness rule: visual summaries are temporary. Prefer the newest screenshot, document, or attachment over older chat history."
             )
         if live_visual_query:
             lines.append(
-                "Live shared desktop rule: ignore older screen descriptions from this chat. "
-                "Use only the newest shared frame and newest live vision summary. "
-                "If the newest frame is unclear, say it is unclear."
+                "Visual query rule: ignore older screen descriptions from this chat. "
+                "Use only the newest screenshot, attachment, or vision summary. "
+                "If the newest visual source is unclear, say it is unclear."
             )
         if voice_mode:
             lines.append(

@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Run LunaAI",
+            "name": "Run PGEX-AI-01",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/main.py",

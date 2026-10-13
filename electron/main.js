@@ -1,4 +1,4 @@
-import { app, BrowserWindow, desktopCapturer, ipcMain, Menu, nativeImage, screen, session, shell, Tray } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, shell, Tray } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
@@ -15,6 +15,10 @@ import { registerAgentIpc } from './ipc/agentIpc.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Preserve existing chat storage and settings across the product rename.
+app.setPath('userData', path.join(app.getPath('appData'), 'lunaai-electron-shell'));
+app.setName('PGEX-AI-01');
 const rendererDevServerUrl = process.env.LUNA_ELECTRON_RENDERER_URL || 'http://127.0.0.1:5173';
 const useRendererDevServer = process.env.npm_lifecycle_event === 'dev'
   || process.env.LUNA_ELECTRON_USE_DEV_SERVER === '1';
@@ -23,36 +27,7 @@ let mainWindow = null;
 let assistantWindow = null;
 let tray = null;
 let pendingLunaAction = null;
-let pendingScreenShareSourceId = '';
 const readSystemMetrics = createSystemMetricsReader();
-
-async function getScreenShareSources() {
-  return desktopCapturer.getSources({
-    types: ['screen', 'window'],
-    thumbnailSize: { width: 640, height: 360 },
-    fetchWindowIcons: true,
-  });
-}
-
-function mapScreenShareSource(source) {
-  return {
-    id: source.id,
-    name: source.name,
-    kind: source.id.startsWith('screen:') ? 'screen' : 'window',
-    thumbnailDataUrl: source.thumbnail && !source.thumbnail.isEmpty() ? source.thumbnail.toDataURL() : '',
-    appIconDataUrl: source.appIcon && !source.appIcon.isEmpty() ? source.appIcon.toDataURL() : '',
-  };
-}
-
-function pickScreenShareSource(sources) {
-  const list = Array.isArray(sources) ? sources : [];
-  const selected = list.find((source) => source.id === pendingScreenShareSourceId);
-  if (selected) return selected;
-  return list.find((source) => source.id.startsWith('screen:'))
-    || list.find((source) => !/lunaai/i.test(source.name))
-    || list[0]
-    || null;
-}
 
 
 function mergePendingLunaAction(result) {
@@ -351,11 +326,11 @@ function createTray() {
       `),
   );
   tray = new Tray(icon);
-  tray.setToolTip('LunaAI Assistant');
+  tray.setToolTip('PGEX-AI-01');
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Show LunaAI', click: showMainWindow },
+    { label: 'Zobrazit PGEX-AI-01', click: showMainWindow },
     {
-      label: 'Hide LunaAI',
+      label: 'Skrýt PGEX-AI-01',
       click: () => {
         mainWindow?.hide();
       },
@@ -373,27 +348,6 @@ function createTray() {
 }
 
 app.whenReady().then(() => {
-  session.defaultSession.setDisplayMediaRequestHandler(
-    async (_request, callback) => {
-      try {
-        const sources = await getScreenShareSources();
-        const source = pickScreenShareSource(sources);
-        pendingScreenShareSourceId = '';
-
-        if (!source) {
-          callback({});
-          return;
-        }
-
-        callback({ video: source });
-      } catch {
-        pendingScreenShareSourceId = '';
-        callback({});
-      }
-    },
-    { useSystemPicker: false },
-  );
-
   registerActionIpc({
     ipcMain,
     getMainWindow: () => mainWindow,
@@ -458,7 +412,7 @@ ipcMain.handle('window:hide-assistant-overlay', () => {
 ipcMain.handle('app:get-meta', () => {
   const metrics = readSystemMetrics();
   return {
-    appName: 'LunaAI',
+    appName: 'PGEX-AI-01',
     version: app.getVersion(),
     platform: process.platform,
     deviceName: os.hostname(),
@@ -542,35 +496,6 @@ ipcMain.handle('files:write-temp-data-url', async (_, payload) => {
   } catch (error) {
     return { ok: false, message: String(error) };
   }
-});
-
-ipcMain.handle('screen-share:list-sources', async () => {
-  try {
-    const sources = await getScreenShareSources();
-    return {
-      ok: true,
-      sources: sources
-        .filter((source) => !/lunaai/i.test(source.name))
-        .map(mapScreenShareSource),
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      message: String(error),
-      sources: [],
-    };
-  }
-});
-
-ipcMain.handle('screen-share:select-source', async (_, sourceId) => {
-  const nextSourceId = String(sourceId || '').trim();
-  if (!nextSourceId) {
-    pendingScreenShareSourceId = '';
-    return { ok: false, message: 'Missing screen share source id.' };
-  }
-
-  pendingScreenShareSourceId = nextSourceId;
-  return { ok: true };
 });
 
 ipcMain.handle('shell:open-external', async (_, rawUrl) => {
@@ -660,6 +585,10 @@ ipcMain.handle('luna:observe-desktop', async (_, payload) => {
 
 ipcMain.handle('luna:analyze-visual', async (_, payload) => {
   return mergePendingLunaAction(await runLunaBridge({ action: 'analyze_visual', ...(payload || {}) }));
+});
+
+ipcMain.handle('luna:observe-system', async (_, payload) => {
+  return mergePendingLunaAction(await runLunaBridge({ action: 'observe_system', ...(payload || {}) }));
 });
 
 ipcMain.handle('luna:transcribe-audio', async (_, payload) => {

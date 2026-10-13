@@ -2,7 +2,7 @@ import PanelCard from '../sections/PanelCard';
 
 export default function SectionPage({ title, subtitle, items, actionLabel, onAction, onItemClick, onItemContext }) {
   return (
-    <div className="section-page-grid">
+    <div className="section-page-grid is-simple">
       <PanelCard title={title} subtitle={subtitle}>
         {actionLabel && onAction ? (
           <div className="section-toolbar">
@@ -11,6 +11,7 @@ export default function SectionPage({ title, subtitle, items, actionLabel, onAct
             </button>
           </div>
         ) : null}
+        {items.length === 0 && <p className="history-empty">Zatím tu nic není. Začni vytvořením projektu.</p>}
         <div className="stack-list">
           {items.map((item) => {
             const content = (
@@ -49,18 +50,6 @@ export default function SectionPage({ title, subtitle, items, actionLabel, onAct
         </div>
       </PanelCard>
 
-      <PanelCard title="System Surface" subtitle="A layered detail zone for state, preview, and future AI system integrations.">
-        <div className="surface-preview">
-          <div className="surface-preview-core" />
-          <h4>{title}</h4>
-          <p>{subtitle}</p>
-          <div className="surface-preview-tags">
-            <span>Monochrome</span>
-            <span>Structured</span>
-            <span>Desktop AI</span>
-          </div>
-        </div>
-      </PanelCard>
     </div>
   );
 }

@@ -1,6 +1,6 @@
-# LunaAI Electron Shell
+# PGEX-AI-01 Electron Shell
 
-This is a React + Electron desktop shell for LunaAI.
+This is a React + Electron desktop shell for PGEX-AI-01.
 
 ## Stack
 - Electron

@@ -20,10 +20,6 @@ contextBridge.exposeInMainWorld('lunaDesktop', {
     readAsDataUrl: (filePath) => ipcRenderer.invoke('files:read-as-data-url', filePath),
     writeTempDataUrl: (payload) => ipcRenderer.invoke('files:write-temp-data-url', payload),
   },
-  screenShare: {
-    listSources: () => ipcRenderer.invoke('screen-share:list-sources'),
-    selectSource: (sourceId) => ipcRenderer.invoke('screen-share:select-source', sourceId),
-  },
   settings: {
     getRuntime: () => ipcRenderer.invoke('settings:get-runtime'),
     saveRuntime: (payload) => ipcRenderer.invoke('settings:save-runtime', payload),
@@ -68,6 +64,7 @@ contextBridge.exposeInMainWorld('lunaDesktop', {
     sendMessage: (payload) => ipcRenderer.invoke('luna:send-message', payload),
     observeDesktop: (payload) => ipcRenderer.invoke('luna:observe-desktop', payload),
     analyzeVisual: (payload) => ipcRenderer.invoke('luna:analyze-visual', payload),
+    observeSystem: (payload) => ipcRenderer.invoke('luna:observe-system', payload),
     transcribeAudio: (payload) => ipcRenderer.invoke('luna:transcribe-audio', payload),
     synthesizeSpeech: (payload) => ipcRenderer.invoke('luna:synthesize-speech', payload),
     setObserveMode: (enabled) => ipcRenderer.invoke('luna:set-observe-mode', enabled),

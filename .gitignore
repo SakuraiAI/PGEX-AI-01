@@ -17,3 +17,11 @@ Thumbs.db
 __pycache__/
 *.py[cod]
 
+
+# Local environment and private runtime data
+.venv/
+!.env.example
+data/*
+!data/updates/
+data/updates/*
+!data/updates/update-manifest.json

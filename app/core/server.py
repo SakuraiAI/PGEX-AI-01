@@ -115,6 +115,8 @@ class LunaServer:
                     "POST /history/clear",
                     "POST /observe",
                     "POST /observe-mode",
+                    "POST /vision/analyze",
+                    "POST /observer/system",
                 ],
             }
         if path == "/status":
@@ -224,6 +226,23 @@ class LunaServer:
                 "message": message,
                 "lastDesktopObservation": self.engine.get_last_desktop_observation(),
             }
+        if path == "/vision/analyze":
+            raw_paths = payload.get("filePaths", [])
+            file_paths = [str(item).strip() for item in raw_paths] if isinstance(raw_paths, list) else []
+            query = str(payload.get("query", "") or "")
+            return HTTPStatus.OK, self.engine.analyze_visual_media(file_paths, query=query)
+        if path == "/observer/system":
+            raw_log_files = payload.get("logFiles", [])
+            raw_process_names = payload.get("processNames", [])
+            log_files = [str(item).strip() for item in raw_log_files] if isinstance(raw_log_files, list) else []
+            process_names = [str(item).strip() for item in raw_process_names] if isinstance(raw_process_names, list) else []
+            observation = self.engine.observe_system_state(
+                project_root=str(payload.get("projectRoot", "") or ""),
+                terminal_output=str(payload.get("terminalOutput", "") or ""),
+                log_files=log_files,
+                process_names=process_names,
+            )
+            return HTTPStatus.OK, {"ok": bool(observation.get("ok", False)), "observation": observation}
         return HTTPStatus.NOT_FOUND, {"ok": False, "error": f"Unknown endpoint: {path}"}
 
     def create_http_server(

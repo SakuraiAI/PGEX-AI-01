@@ -162,7 +162,13 @@ class AgentActionRouter:
         normalized_input = ascii_fold_text(clean_input).lower()
 
         input_source = "voice" if "input source: voice" in normalized or "voice mode:" in normalized else "chat"
-        vision_active = "active desktop share:" in normalized or "newest shared frame" in normalized or "current live vision summary" in normalized
+        vision_active = (
+            "active desktop share:" in normalized
+            or "newest shared frame" in normalized
+            or "current live vision summary" in normalized
+            or "vision summary:" in normalized
+            or "attached file:" in normalized
+        )
         live_visual_query = vision_active and any(marker in normalized_input for marker in self._VISUAL_QUERY_MARKERS)
         destructive = any(marker in normalized_input for marker in self._DESTRUCTIVE_MARKERS)
         action_request = any(marker in normalized_input for marker in self._ACTION_MARKERS)
@@ -288,9 +294,9 @@ class AgentActionRouter:
         if action_scope == "blocked_risk":
             return "The request looks destructive or system-risky and must not run automatically."
         if live_visual_query:
-            return "The user is asking about the live screen, so the newest shared frame is the source of truth."
+            return "The user is asking about visual context, so the newest screenshot or attachment is the source of truth."
         if vision_active:
-            return "Desktop share is active, so visual context should ground the answer."
+            return "Vision context is active, so the answer should be grounded in the newest visual source."
         if input_source == "voice":
             return "Voice mode is active, so keep the flow short and action-oriented."
         return "Normal chat route."
@@ -314,7 +320,7 @@ class AgentActionRouter:
             f"- Scope: {action_scope}",
             f"- Risk: {risk}",
             f"- Vision active: {'yes' if vision_active else 'no'}",
-            f"- Live visual query: {'yes' if live_visual_query else 'no'}",
+            f"- Visual query: {'yes' if live_visual_query else 'no'}",
             f"- Try local action: {'yes' if should_attempt_local_action else 'no'}",
             f"- Voice auto-execute: {'yes' if force_auto_execution else 'no'}",
             f"- Xeno check: {'yes' if consult_xeno else 'no'}",

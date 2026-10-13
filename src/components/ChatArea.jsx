@@ -1,3 +1,4 @@
+import lunaPortrait from '../assets/luna.jpg';
 ﻿import { useEffect, useRef } from 'react';
 import Orb3D from './Orb3D';
 import { repairDisplayedText } from '../utils/textRepair';
@@ -138,7 +139,7 @@ function ThinkingPanel({ thinkingState }) {
     <div className="thinking-panel" aria-live="polite">
       <div className="thinking-panel-head">
         <span className="thinking-dot" />
-        <strong>System activity</strong>
+        <strong>Aktuální úkol</strong>
       </div>
       <div className="thinking-track-list">
         {tracks.map((track, index) => (
@@ -165,143 +166,10 @@ function PendingActionPanel({ pendingAction, onConfirmPendingAction, onCancelPen
 
   return (
     <div className="pending-action-panel" aria-live="polite" aria-label={pendingAction.title || 'Luna čeká na potvrzení akce.'}>
-      <div className="pending-action-buttons is-centered">
-        <button type="button" className="secondary-button" onClick={onCancelPendingAction}>Cancel</button>
-        <button type="button" className="primary-button" onClick={onConfirmPendingAction}>Accept</button>
+      <p>{pendingAction.title || "Luna čeká na potvrzení akce."}</p><div className="pending-action-buttons is-centered">
+        <button type="button" className="secondary-button" onClick={onCancelPendingAction}>Zrušit</button>
+        <button type="button" className="primary-button" onClick={onConfirmPendingAction}>Potvrdit</button>
       </div>
-    </div>
-  );
-}
-
-function ScreenSharePanel({ screenShare, onStopScreenShare }) {
-  if (!screenShare?.active) return null;
-
-  const lastFrameLabel = screenShare.lastFrameAt
-    ? new Date(screenShare.lastFrameAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    : 'čekám na první frame';
-  const previewVideoRef = useRef(null);
-
-  useEffect(() => {
-    const videoNode = previewVideoRef.current;
-    if (!videoNode) return undefined;
-
-    if (screenShare?.stream) {
-      videoNode.srcObject = screenShare.stream;
-      videoNode.play?.().catch(() => {});
-    } else {
-      videoNode.srcObject = null;
-    }
-
-    return () => {
-      if (videoNode) {
-        videoNode.srcObject = null;
-      }
-    };
-  }, [screenShare?.stream]);
-
-  return (
-    <aside className="screen-share-panel" aria-live="polite">
-      <div className="screen-share-panel-head">
-        <div>
-          <strong>Desktop share</strong>
-          <span>{screenShare.label || 'Zivy nahled pro tebe, prubezne framy pro AI'}</span>
-        </div>
-        <button type="button" className="screen-share-panel-stop" onClick={onStopScreenShare}>
-          Stop
-        </button>
-      </div>
-      <div className="screen-share-meta">
-        <span className="screen-share-live-badge">LIVE</span>
-        <small>{screenShare.frameCount || 0} framů</small>
-        <small>Poslední frame: {lastFrameLabel}</small>
-      </div>
-      <div className="screen-share-panel-preview">
-        {screenShare.stream ? (
-          <video
-            ref={previewVideoRef}
-            className="screen-share-live-video"
-            autoPlay
-            muted
-            playsInline
-          />
-        ) : screenShare.previewUrl ? (
-          <img src={screenShare.previewUrl} alt="Desktop share preview" />
-        ) : (
-          <div className="screen-share-panel-empty">Připravuju živý náhled...</div>
-        )}
-      </div>
-      <p>{screenShare.status || 'Luna a Xeno čtou průběžně obnovované framy ze sdílené obrazovky.'}</p>
-      <div className={`screen-share-summary ${screenShare.summaryStatus === 'error' ? 'is-error' : ''}`}>
-        <div className="screen-share-summary-head">
-          <strong>Live vision summary</strong>
-          <span>{screenShare.analyzing ? 'Analyzuju…' : (screenShare.summaryStatusLabel || 'Ready')}</span>
-        </div>
-        <p>{screenShare.visionSummary || 'Čekám na první vizuální čtení.'}</p>
-      </div>
-    </aside>
-  );
-}
-
-function ShareAutomationPanel({ shareAutomation, onCloseShareDebugPanel }) {
-  const plannerSummary = String(shareAutomation?.plannerSummary || '').trim();
-  const confirmationRequest = shareAutomation?.confirmationRequest;
-  const action = shareAutomation?.lastAction;
-  const debugTags = Array.isArray(shareAutomation?.debug?.tags) ? shareAutomation.debug.tags : [];
-
-  if (!plannerSummary && !confirmationRequest && !shareAutomation?.debugPanelOpen) {
-    return null;
-  }
-
-  return (
-    <div className="screen-share-automation">
-      <div className="screen-share-summary">
-        <div className="screen-share-summary-head">
-          <strong>Action planner</strong>
-          <span>{shareAutomation?.lastActionStatus || 'idle'}</span>
-        </div>
-        <p>{plannerSummary || 'Planner zatim ceka na prvni jasny navrh.'}</p>
-      </div>
-
-      {confirmationRequest ? (
-        <div className="screen-share-confirmation">
-          <div className="screen-share-summary-head">
-            <strong>Confirmation request</strong>
-            <span>system</span>
-          </div>
-          <p>{confirmationRequest?.message || 'Systemova akce ceka na potvrzeni.'}</p>
-          <small>
-            {confirmationRequest?.action?.type || 'action'} {confirmationRequest?.action?.target ? `-> ${confirmationRequest.action.target}` : ''}
-          </small>
-        </div>
-      ) : null}
-
-      {shareAutomation?.debugPanelOpen ? (
-        <div className="screen-share-debug-panel">
-          <div className="screen-share-debug-head">
-            <strong>Electron debug panel</strong>
-            <button type="button" className="screen-share-mini-button" onClick={onCloseShareDebugPanel}>
-              Close
-            </button>
-          </div>
-          <div className="screen-share-debug-grid">
-            <div>
-              <span>Last action</span>
-              <strong>{action ? `${action.type} -> ${action.target}` : 'No action yet'}</strong>
-            </div>
-            <div>
-              <span>Status</span>
-              <strong>{shareAutomation?.lastActionMessage || 'Waiting for the next planner pass.'}</strong>
-            </div>
-          </div>
-          {debugTags.length ? (
-            <div className="screen-share-debug-tags">
-              {debugTags.map((tag) => (
-                <span key={tag}>{tag}</span>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -321,7 +189,7 @@ function AgentCoreBar({ thinkingState }) {
         <span />
       </div>
       <div className="agent-core-orb">
-        <Orb3D />
+        <img className="luna-avatar" src={lunaPortrait} alt="Luna" />
       </div>
       <div className="agent-core-link is-right" aria-hidden="true">
         <span />
@@ -391,10 +259,6 @@ export default function ChatArea({
   pendingAction = null,
   onConfirmPendingAction = null,
   onCancelPendingAction = null,
-  screenShare = null,
-  shareAutomation = null,
-  onStopScreenShare = null,
-  onCloseShareDebugPanel = null,
 }) {
   const displayMessages = compactActionMessages(messages);
   const hasMessages = displayMessages.length > 0;
@@ -424,10 +288,10 @@ export default function ChatArea({
   if (!hasMessages && !revealingMessage?.content) {
     return (
       <section className="chat-workspace chat-workspace-empty">
-        <AgentCoreBar thinkingState={thinkingState} />
+
         <div className="empty-chat-stage">
           <div className="empty-chat-core">
-            <Orb3D />
+            <img className="luna-avatar" src={lunaPortrait} alt="Luna" />
           </div>
           <div className="empty-chat-copy">
             <h2>Co je dnes na programu?</h2>
@@ -441,14 +305,14 @@ export default function ChatArea({
 
   return (
     <section className="chat-workspace is-live">
-      <AgentCoreBar thinkingState={thinkingState} />
+
       <div className="messages-panel" ref={messagesPanelRef}>
         <ThinkingPanel thinkingState={thinkingState} />
         {displayMessages.map((message) => (
           <article key={message.id} className={`message-row ${message.role === 'user' ? 'is-user' : 'is-assistant'}`}>
             <div className={`message-bubble ${message.role === 'user' ? 'is-user' : 'is-assistant'} ${message.author === 'Xeno' ? 'is-xeno' : ''} ${message.isActionLog ? 'is-action-log' : ''}`}>
               <span className={`message-author ${message.author === 'Xeno' ? 'is-xeno' : ''} ${message.isActionLog ? 'is-action-log' : ''}`}>
-                {message.author}
+                {message.author || (message.role === 'user' ? 'Ty' : 'Luna')}
                 {message.isActionLog && message.actionCount > 1 ? <em>{message.actionCount} actions</em> : null}
               </span>
               <MessageContent content={message.content} />

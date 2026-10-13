@@ -7,17 +7,8 @@ import { getSharedBackendSettingsPath, readBackendUserSettings } from './backend
 
 const applicationCatalog = [
   { id: 'app-vscode', key: 'vscode', name: 'VS Code', detail: 'Connected workspace editor', pathField: 'vscode_path' },
-  { id: 'app-chrome', key: 'chrome', name: 'Google Chrome', detail: 'Web browser and URL automation layer', pathField: 'chrome_path' },
   { id: 'app-blender', key: 'blender', name: 'Blender', detail: '3D and asset creation layer', pathField: 'blender_path' },
   { id: 'app-unreal', key: 'unreal', name: 'Unreal Engine', detail: 'Real-time scene and game environment', pathField: 'unreal_engine_path' },
-  { id: 'app-unity', key: 'unity', name: 'Unity', detail: 'Game editor and runtime workspace', pathField: 'unity_path' },
-  { id: 'app-photoshop', key: 'photoshop', name: 'Photoshop', detail: 'Image editing and compositing', pathField: 'photoshop_path' },
-  { id: 'app-davinci', key: 'davinci', name: 'DaVinci Resolve', detail: 'Video finishing and timeline work', pathField: 'davinci_resolve_path' },
-  { id: 'app-premiere', key: 'premiere', name: 'Premiere Pro', detail: 'Timeline editing and media cuts', pathField: 'premiere_pro_path' },
-  { id: 'app-aftereffects', key: 'aftereffects', name: 'After Effects', detail: 'Motion graphics and animation', pathField: 'after_effects_path' },
-  { id: 'app-figma', key: 'figma', name: 'Figma', detail: 'Design workspace and review surface', pathField: 'figma_path' },
-  { id: 'app-flstudio', key: 'flstudio', name: 'FL Studio', detail: 'Audio composition workspace', pathField: 'fl_studio_path' },
-  { id: 'app-substance', key: 'substance', name: 'Substance Painter', detail: 'Material and texture authoring', pathField: 'substance_painter_path' },
 ];
 
 export function getApplicationsState() {

@@ -1,5 +1,5 @@
 export const sidebarSections = [
-  { key: 'gallery', label: 'Gallery' },
+  { key: 'vision', label: 'Vision' },
   { key: 'projects', label: 'Projects' },
   { key: 'friends', label: 'Friends' },
 ];
@@ -8,15 +8,12 @@ export const initialChats = [];
 
 export const initialMessages = [];
 
-export const galleryItems = [];
-
 export const projectCards = [];
 
 export const applications = [
   { id: 'a-1', name: 'VS Code', detail: 'Connected workspace editor', status: 'Ready' },
   { id: 'a-2', name: 'Blender', detail: '3D and asset creation layer', status: 'Ready' },
   { id: 'a-3', name: 'Unreal Engine', detail: 'Real-time scene and game environment', status: 'Path missing' },
-  { id: 'a-4', name: 'DaVinci Resolve', detail: 'Video finishing and timeline work', status: 'Path missing' },
 ];
 
 export const updates = [
@@ -29,7 +26,7 @@ export const updates = [
     date: 'April 2, 2026',
     notes: [
       'Runtime resource limits now affect real Luna behavior instead of only local UI state.',
-      'Project, chat, and gallery flows were aligned into a cleaner shared shell.',
+      'Project and chat flows were aligned into a cleaner shared shell.',
       'Electron desktop identity and internal system layout were refined.',
     ],
   },

@@ -1,53 +1,19 @@
-function BellIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="topbar-icon-glyph">
-      <path d="M12 4.5a4 4 0 0 0-4 4v2.3c0 .9-.3 1.8-.9 2.5L5.8 15a1 1 0 0 0 .8 1.6h10.8a1 1 0 0 0 .8-1.6l-1.3-1.7a4.1 4.1 0 0 1-.9-2.5V8.5a4 4 0 0 0-4-4Z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M10.2 18.5a2 2 0 0 0 3.6 0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-    </svg>
-  );
-}
+import lunaPortrait from '../assets/luna.jpg';
 
-export default function TopBar({
-  collapsed,
-  onToggleSidebar,
-  profileName,
-  onOpenProfile,
-  onOpenNotifications,
-  notificationCount,
-  onWindowAction,
-}) {
+export default function TopBar({ collapsed, onToggleSidebar, onWindowAction, onOpenNotifications, notificationCount }) {
   return (
     <header className="topbar app-drag-region">
-      <div className="topbar-left">
-        <button className="topbar-toggle app-no-drag" type="button" onClick={onToggleSidebar} aria-label="Toggle sidebar">
-          {collapsed ? '+' : '-'}
-        </button>
-        <div className="brand-mark">
-          <div className="brand-mark-inner" />
-        </div>
-        <div className="brand-copy">
-          <h1>LunaAI</h1>
-          <p>Internal AI system dashboard</p>
-        </div>
+      <div className="topbar-left app-no-drag">
+        <button type="button" className="topbar-toggle" onClick={onToggleSidebar} aria-label="Přepnout postranní panel" aria-expanded={!collapsed}>☰</button>
+        <div className="assistant-identity"><img className="luna-avatar" src={lunaPortrait} alt="" /><span>PGEX-AI-01</span></div>
       </div>
-
-      <div className="topbar-right">
-        <div className="window-controls app-no-drag">
-          <button className="window-button app-no-drag" type="button" onClick={() => onWindowAction('minimize')} aria-label="Minimize">-</button>
-          <button className="window-button app-no-drag" type="button" onClick={() => onWindowAction('maximize')} aria-label="Maximize">+</button>
-          <button className="window-button app-no-drag is-close" type="button" onClick={() => onWindowAction('close')} aria-label="Close">x</button>
+      <div className="topbar-right app-no-drag">
+        {notificationCount > 0 && <button type="button" className="window-button" onClick={onOpenNotifications} aria-label={`Oznámení (${notificationCount})`}>♧ •</button>}
+        <div className="window-controls">
+          <button type="button" className="window-button" onClick={() => onWindowAction('minimize')} aria-label="Minimalizovat">−</button>
+          <button type="button" className="window-button" onClick={() => onWindowAction('maximize')} aria-label="Maximalizovat">□</button>
+          <button type="button" className="window-button is-close" onClick={() => onWindowAction('close')} aria-label="Zavřít">×</button>
         </div>
-        <button className="notification-trigger app-no-drag" type="button" onClick={onOpenNotifications} aria-label="Open notifications">
-          <BellIcon />
-          {notificationCount > 0 ? <span className="notification-badge">{notificationCount}</span> : null}
-        </button>
-        <button className="profile-trigger app-no-drag" type="button" onClick={onOpenProfile}>
-          <span className="profile-avatar">{profileName?.charAt(0) || 'L'}</span>
-          <span className="profile-copy">
-            <strong>{profileName}</strong>
-            <span>Profile</span>
-          </span>
-        </button>
       </div>
     </header>
   );

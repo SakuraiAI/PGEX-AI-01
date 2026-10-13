@@ -19,11 +19,13 @@ from app.core.agent_trace import AgentTraceStore
 from app.core.agent_orchestrator import AgentOrchestrator
 from app.core.library_store import LibraryStore
 from app.core.memory_coordinator import MemoryCoordinator
+from app.core.observer_layer import ObserverLayer
 from app.core.system_control import SystemControlLayer
 from app.core.prompt_builder import PromptBuilder
 from app.core.project_store import ProjectStore
 from app.core.runtime_status import RuntimeStatusFormatter
 from app.core.user_settings import UserSettingsStore
+from app.core.vision_layer import VisionLayer
 from app.memory.chat_memory import ChatMemory
 from app.memory.long_memory import LongMemory
 from app.models.local_model import LocalModel
@@ -101,6 +103,8 @@ class LunaEngine:
         self.internet = InternetTool()
         self.desktop_actions = DesktopActionTool()
         self.desktop_observer = DesktopObserverTool()
+        self.vision_layer = VisionLayer(self.vision_model)
+        self.observer_layer = ObserverLayer()
         self.xeno = XenoCoordinator()
         self.user_settings = UserSettingsStore(Path(self.settings.user_settings_path))
         self.projects = ProjectStore(Path(self.settings.projects_path))
@@ -741,22 +745,21 @@ class LunaEngine:
 
     def _vision_prompt_for_desktop(self) -> str:
         return (
-            "Describe the current desktop scene for LunaAI. Focus on the active app, visible UI, "
-            "important text, what the user seems to be doing, and the next useful desktop-aware step."
+            "Analyze this one-shot screenshot for LunaAI. Focus on visible UI, readable text, "
+            "visible errors, important context, confidence, and the next safe step. Return structured JSON."
         )
 
+    def _analyze_visual_structured(self, file_paths: list[str], query: str, source: str = "") -> dict[str, object]:
+        cleaned_paths = [str(path).strip() for path in file_paths if str(path).strip()]
+        if not cleaned_paths:
+            return self.vision_layer.analyze([], query=query, source=source)
+        return self.vision_layer.analyze(cleaned_paths, query=query, source=source)
+
     def _analyze_visual_media(self, file_paths: list[str], query: str) -> str:
-        if not self.vision_model.is_available():
+        analysis = self._analyze_visual_structured(file_paths, query=query)
+        if not analysis.get("ok"):
             return ""
-
-        supported_paths = [path for path in file_paths if self.vision_model.supports_path(path)]
-        if not supported_paths:
-            return ""
-
-        try:
-            return self.vision_model.analyze_media(query=query, media_files=supported_paths[:4])
-        except Exception as error:
-            return f"Vision analysis was requested but failed: {error}"
+        return self.vision_layer.summarize(analysis)
 
     @staticmethod
     def _safe_timestamp_slug() -> str:
@@ -764,13 +767,15 @@ class LunaEngine:
 
     def analyze_visual_media(self, file_paths: list[str], query: str = "") -> dict[str, object]:
         cleaned_paths = [str(path).strip() for path in file_paths if str(path).strip()]
-        summary = self._analyze_visual_media(
+        analysis = self._analyze_visual_structured(
             cleaned_paths,
             query.strip() or "Describe the visible scene, UI, text, and the most relevant activity on screen.",
         )
+        summary = self.vision_layer.summarize(analysis)
         return {
-            "ok": bool(summary.strip()),
+            "ok": bool(analysis.get("ok")),
             "summary": summary,
+            "analysis": analysis,
             "files": cleaned_paths,
         }
 
@@ -870,8 +875,14 @@ class LunaEngine:
         observation = self.desktop_observer.observe(include_screenshot=include_screenshot)
         screenshot_path = str(observation.get("screenshot_path", "") or "").strip()
         if include_screenshot and screenshot_path:
-            vision_summary = self._analyze_visual_media([screenshot_path], self._vision_prompt_for_desktop())
+            vision_analysis = self._analyze_visual_structured(
+                [screenshot_path],
+                self._vision_prompt_for_desktop(),
+                source="screenshot",
+            )
+            vision_summary = self.vision_layer.summarize(vision_analysis) if vision_analysis.get("ok") else ""
             if vision_summary:
+                observation["vision_analysis"] = vision_analysis
                 observation["vision_summary"] = vision_summary
         self.last_desktop_observation = observation
         summary = self.desktop_observer.summarize(observation)
@@ -896,8 +907,14 @@ class LunaEngine:
         observation = self.desktop_observer.observe(include_screenshot=include_screenshot)
         screenshot_path = str(observation.get("screenshot_path", "") or "").strip()
         if include_screenshot and screenshot_path:
-            vision_summary = self._analyze_visual_media([screenshot_path], self._vision_prompt_for_desktop())
+            vision_analysis = self._analyze_visual_structured(
+                [screenshot_path],
+                self._vision_prompt_for_desktop(),
+                source="screenshot",
+            )
+            vision_summary = self.vision_layer.summarize(vision_analysis) if vision_analysis.get("ok") else ""
             if vision_summary:
+                observation["vision_analysis"] = vision_analysis
                 observation["vision_summary"] = vision_summary
         summary = self.desktop_observer.summarize(observation)
         if observation.get("vision_summary"):
@@ -1009,13 +1026,13 @@ class LunaEngine:
             return None
 
         return (
-            "Luna: Tady nejde o Zoom, Teams ani OBS. V LunaAI se používá vestavěný Desktop share. 👀\n\n"
+            "Luna: Desktop share už nebudeme brát jako hlavní workflow. Vision teď dává větší smysl jako "
+            "rozpoznávání konkrétního obrázku, dokumentu, videa nebo jednorázového screenshotu.\n\n"
             "1. Klikni na `+` vedle pole pro zprávu.\n"
-            "2. Vyber `Desktop share`.\n"
-            "3. Zvol monitor nebo konkrétní okno.\n"
-            "4. Vpravo se má ukázat živý náhled se štítkem `LIVE`.\n"
-            "5. Od té chvíle Luna a Xeno dostávají průběžně obnovované framy jako vizuální kontext.\n\n"
-            "Když se náhled neukáže, problém je v Electron screen-capture vrstvě, ne v nastavení Windows videohovoru."
+            "2. Vyber `Analyze file / document`, nebo `Capture screenshot`.\n"
+            "3. Pošli obrázek, PDF/dokument, video, nebo aktuální screenshot.\n"
+            "4. Luna a Xeno použijí nejčerstvější vizuální kontext pro odpověď nebo agent plán.\n\n"
+            "Takhle se vyhneme trvalému streamování a AI bude pracovat s přesným vstupem, který jí opravdu chceš ukázat. 👀"
         )
 
     def _handle_local_capability_command(self, user_input: str) -> str | None:
@@ -1312,14 +1329,17 @@ class LunaEngine:
 
         screenshot_path = str(after.get("screenshot_path", "") or "").strip()
         if screenshot_path:
-            vision_summary = self._analyze_visual_media(
+            vision_analysis = self._analyze_visual_structured(
                 [screenshot_path],
                 (
                     "Verify the result of this desktop action for LunaAI. "
-                    f"Action: {title}. Describe only the current visible result in one short sentence."
+                    f"Action: {title}. Return structured JSON about the visible result."
                 ),
+                source="screenshot",
             )
+            vision_summary = self.vision_layer.summarize(vision_analysis) if vision_analysis.get("ok") else ""
             if vision_summary:
+                after["vision_analysis"] = vision_analysis
                 after["vision_summary"] = vision_summary
                 verification += " Vision: " + self._compact_verification_text(vision_summary, limit=260)
 
@@ -4177,40 +4197,43 @@ class LunaEngine:
     def read_attachment_context(self, file_paths: list[str]) -> str:
         if not file_paths:
             return ""
-        allowed_suffixes = {".txt", ".md", ".py", ".json", ".yaml", ".yml", ".csv", ".log", ".ini", ".toml", ".js", ".ts", ".tsx", ".jsx", ".html", ".css"}
-        visual_suffixes = {".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm", ".mov"}
-        parts: list[str] = []
-        visual_paths: list[str] = []
-        for raw_path in file_paths[:4]:
-            path = Path(raw_path)
-            if not path.exists():
-                parts.append(f"File {path.name} could not be found locally.")
-                continue
-            if path.suffix.lower() in visual_suffixes:
-                visual_paths.append(str(path))
-                continue
-            if path.suffix.lower() not in allowed_suffixes:
-                parts.append(f"File {path.name} attached as a binary or unsupported format.")
-                continue
-            try:
-                content = path.read_text(encoding="utf-8", errors="ignore")
-            except OSError:
-                parts.append(f"File {path.name} is attached but could not be read.")
-                continue
-            snippet = content[:4000].strip()
-            if not snippet:
-                parts.append(f"File {path.name} is attached but empty.")
-                continue
-            parts.append(f"Attached file: {path.name}\n{snippet}")
-        if visual_paths:
-            visual_summary = self._analyze_visual_media(
-                visual_paths,
-                "Describe the attached visual media for LunaAI and Xeno. Focus on visible UI, text, activity, and what matters for the user's task.",
-            )
-            if visual_summary:
-                names = ", ".join(Path(path).name for path in visual_paths)
-                parts.append(f"Visual attachment analysis ({names}):\n{visual_summary}")
-        return "\n\n".join(parts)
+        analysis = self._analyze_visual_structured(
+            file_paths[:4],
+            (
+                "Read the attached file(s) for LunaAI and Xeno. Extract visible/readable text, "
+                "detect errors, summarize important context, and recommend the next safe step."
+            ),
+        )
+        summary = self.vision_layer.summarize(analysis)
+        structured = json.dumps(analysis, ensure_ascii=False, indent=2)
+        return f"Attached file analysis:\n{summary}\n\nStructured vision/observer JSON:\n{structured}"
+
+    def read_terminal_observation(self, terminal_output: str) -> dict[str, object]:
+        return self.observer_layer.read_terminal_output(terminal_output)
+
+    def read_log_observation(self, file_path: str) -> dict[str, object]:
+        return self.observer_layer.read_log_file(file_path)
+
+    def read_project_observation(self, root_path: str) -> dict[str, object]:
+        return self.observer_layer.read_project_files(root_path)
+
+    def check_process_observation(self, process_names: list[str] | None = None) -> dict[str, object]:
+        return self.observer_layer.check_running_processes(process_names)
+
+    def observe_system_state(
+        self,
+        *,
+        project_root: str = "",
+        terminal_output: str = "",
+        log_files: list[str] | None = None,
+        process_names: list[str] | None = None,
+    ) -> dict[str, object]:
+        return self.observer_layer.observe_system_state(
+            project_root=project_root,
+            terminal_output=terminal_output,
+            log_files=log_files or [],
+            process_names=process_names or [],
+        )
 
     def generate_project_package(self, user_input: str, project_name: str = "") -> dict[str, object]:
         intelligence_level = self._normalized_intelligence_level()

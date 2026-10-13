@@ -41,6 +41,14 @@ class _BridgeEngine(Protocol):
     def capture_desktop_snapshot(self, include_screenshot: bool = False, *, remember: bool = True) -> dict[str, Any]: ...
     def read_attachment_context(self, file_paths: list[str]) -> str: ...
     def analyze_visual_media(self, file_paths: list[str], query: str = "") -> dict[str, Any]: ...
+    def observe_system_state(
+        self,
+        *,
+        project_root: str = "",
+        terminal_output: str = "",
+        log_files: list[str] | None = None,
+        process_names: list[str] | None = None,
+    ) -> dict[str, Any]: ...
     def transcribe_audio_file(self, file_path: str, language: str = "") -> dict[str, Any]: ...
     def synthesize_speech_text(self, text: str, language: str = "", voice: str = "") -> dict[str, Any]: ...
 
@@ -175,6 +183,19 @@ def main() -> int:
         analysis = engine.analyze_visual_media(file_paths, query=query)
         result = _state(engine)
         result.update(analysis)
+    elif action == "observe_system":
+        raw_log_files = payload.get("logFiles", [])
+        raw_process_names = payload.get("processNames", [])
+        log_files = [str(item).strip() for item in raw_log_files] if isinstance(raw_log_files, list) else []
+        process_names = [str(item).strip() for item in raw_process_names] if isinstance(raw_process_names, list) else []
+        observation = engine.observe_system_state(
+            project_root=str(payload.get("projectRoot", "") or ""),
+            terminal_output=str(payload.get("terminalOutput", "") or ""),
+            log_files=log_files,
+            process_names=process_names,
+        )
+        result = _state(engine)
+        result["observation"] = observation
     elif action == "transcribe_audio":
         file_path = str(payload.get("filePath", "") or "")
         language = str(payload.get("language", "") or "")

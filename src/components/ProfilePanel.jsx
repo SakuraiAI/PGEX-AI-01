@@ -11,22 +11,23 @@ function UsageValue({ value }) {
   return <strong className="usage-value">{typeof value === 'number' ? `${value}%` : '--'}</strong>;
 }
 
-export default function ProfilePanel({ visible, profileName, appMeta, signedInAs, signInLabel, onSignIn, onClose }) {
+export default function ProfilePanel({ visible, appMeta, onClose }) {
+  if (!visible) return null;
   return (
     <aside className={`profile-panel ${visible ? 'is-open' : ''}`}>
       <div className="profile-panel-card">
         <div className="profile-panel-head">
-          <div className="profile-panel-avatar">{profileName?.charAt(0) || 'L'}</div>
+          <div className="profile-panel-avatar">L</div>
           <div>
-            <h3>{profileName}</h3>
-            <p>{signedInAs ? `Signed in as ${signedInAs}` : 'Identity / Device layer'}</p>
+            <h3>O zařízení</h3>
+            <p>LunaAI</p>
           </div>
         </div>
 
         <div className="profile-detail-block">
-          <span>Device</span>
+          <span>Zařízení</span>
           <strong>{appMeta.deviceName || 'Unknown device'}</strong>
-          <small>{appMeta.os || 'Windows'} ? {appMeta.arch || 'x64'}</small>
+          <small>{appMeta.os || 'Windows'} · {appMeta.arch || 'x64'}</small>
         </div>
 
         <div className="profile-detail-grid">
@@ -39,25 +40,24 @@ export default function ProfilePanel({ visible, profileName, appMeta, signedInAs
           <div>
             <span>GPU</span>
             <UsageValue value={appMeta.gpuUsagePercent} />
-            <small>{appMeta.gpu || 'Unavailable'}{appMeta.gpuVendor && appMeta.gpuVendor !== 'unknown' ? ` ? ${appMeta.gpuVendor.toUpperCase()}` : ''}</small>
+            <small>{appMeta.gpu || 'Unavailable'}{appMeta.gpuVendor && appMeta.gpuVendor !== 'unknown' ? ` · ${appMeta.gpuVendor.toUpperCase()}` : ''}</small>
             <UsageMeter value={appMeta.gpuUsagePercent} />
           </div>
           <div>
-            <span>Memory</span>
+            <span>Paměť</span>
             <UsageValue value={appMeta.memoryUsagePercent} />
             <small>{appMeta.memoryGb ? `${appMeta.memoryUsedGb || 0} / ${appMeta.memoryGb} GB` : 'Unknown'}</small>
             <UsageMeter value={appMeta.memoryUsagePercent} />
           </div>
           <div>
-            <span>Version</span>
+            <span>Verze</span>
             <strong>{appMeta.version || '0.1.0'}</strong>
             <small>{appMeta.platform || 'desktop'}</small>
           </div>
         </div>
 
         <div className="profile-panel-actions">
-          <button className="primary-button" type="button" onClick={onSignIn}>{signInLabel}</button>
-          <button className="secondary-button" type="button" onClick={onClose}>Close</button>
+          <button className="secondary-button" type="button" onClick={onClose}>Zavřít</button>
         </div>
       </div>
     </aside>

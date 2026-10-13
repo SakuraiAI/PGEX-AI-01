@@ -1,16 +1,14 @@
 const SAFE_INTERNAL_ACTIONS = {
   click_internal_ui: new Set([
-    'start-share-desktop',
-    'stop-share-desktop',
-    'open-share-debug-panel',
-    'close-share-debug-panel',
+    'open-vision-panel',
+    'capture-screenshot',
   ]),
   switch_internal_panel: new Set([
     'chat',
+    'vision',
     'projects',
     'applications',
     'updates',
-    'gallery',
     'friends',
     'settings',
   ]),

@@ -1,8 +1,8 @@
 const projectTypes = [
-  { id: 'investing', label: 'Investovani' },
-  { id: 'home', label: 'Domaci ukoly' },
-  { id: 'writing', label: 'Psani' },
-  { id: 'travel', label: 'Cestovani' },
+  { id: 'investing', label: 'Investování' },
+  { id: 'home', label: 'Domácí úkoly' },
+  { id: 'writing', label: 'Psaní' },
+  { id: 'travel', label: 'Cestování' },
 ];
 
 export default function ProjectModal({ visible, value, selectedType, onChange, onSelectType, onClose, onCreate }) {
@@ -13,21 +13,20 @@ export default function ProjectModal({ visible, value, selectedType, onChange, o
       <div className="project-modal" onClick={(event) => event.stopPropagation()}>
         <div className="project-modal-head">
           <div>
-            <h2>Vytvorit projekt</h2>
+            <h2>Vytvořit projekt</h2>
           </div>
           <div className="project-modal-actions">
-            <button type="button" className="modal-icon-button" aria-label="Project settings">?</button>
-            <button type="button" className="modal-icon-button" aria-label="Close" onClick={onClose}>?</button>
+            <button type="button" className="modal-icon-button" aria-label="Zavřít" onClick={onClose}>×</button>
           </div>
         </div>
 
         <label className="project-field">
-          <span>Nazev projektu</span>
+          <span>Název projektu</span>
           <input
             className="project-name-input"
             value={value}
             onChange={(event) => onChange(event.target.value)}
-            placeholder="Vylet do Kodane"
+            placeholder="Název tvého projektu"
           />
         </label>
 
@@ -45,12 +44,12 @@ export default function ProjectModal({ visible, value, selectedType, onChange, o
         </div>
 
         <div className="project-note">
-          <p>V projektech se uchovavaji chaty, soubory a vlastni pokyny na jednom miste. Pouzivej je pro prubeznou praci nebo jen pro udrzeni poradku.</p>
+          <p>Projekt ti pomůže uspořádat konverzace k jednomu tématu.</p>
         </div>
 
         <div className="project-modal-footer">
           <button type="button" className="primary-button project-create-button" onClick={onCreate} disabled={!value.trim()}>
-            Vytvorit projekt
+            Vytvořit projekt
           </button>
         </div>
       </div>

@@ -5,33 +5,26 @@ import Sidebar from './components/Sidebar';
 import ChatArea from './components/ChatArea';
 import ChatInput from './components/ChatInput';
 import ContextMenu from './components/ContextMenu';
-import ProfilePanel from './components/ProfilePanel';
 import NotificationsPanel from './components/NotificationsPanel';
 import ProjectModal from './components/ProjectModal';
-import DesktopShareOverlay from './components/DesktopShareOverlay';
-import ScreenShareSourcePicker from './components/ScreenShareSourcePicker';
 import VoiceSessionOverlay from './components/VoiceSessionOverlay';
-import GalleryPage from './pages/GalleryPage';
+import EyesPage from './pages/EyesPage';
 import SectionPage from './pages/SectionPage';
 import SettingsPage from './pages/SettingsPage';
 import UpdatesPage from './pages/UpdatesPage';
-import { createTaskPlanner } from './planner/taskPlanner';
 import { normalizeTransportText } from './utils/textRepair';
 import {
-  sidebarSections,
   initialChats,
   initialMessages,
-  galleryItems,
   projectCards,
   updates,
 } from './data/mockData';
 
 const sectionTitles = {
   chat: { title: 'Luna Workspace', subtitle: 'A calm command surface for Luna, Xeno, the agent layer, and future local reasoning.' },
-  gallery: { title: 'Photos', subtitle: 'AI obrazky se ukladaji sem, aby zustaly prehledne a pohromade.' },
-  projects: { title: 'Projects', subtitle: 'Long-term workspaces, execution tracks, and structured system memory.' },
+  vision: { title: 'Vision', subtitle: 'Recognize screenshots, documents, videos, and attached visual context.' },
+  projects: { title: 'Projekty', subtitle: 'Rozpracované úkoly a konverzace na jednom místě.' },
   updates: { title: 'Updates', subtitle: 'Patch-note style system feed for LunaAI and internal layer changes.' },
-  friends: { title: 'Friends / Groups', subtitle: 'Visible and hidden AI entities arranged as connected system relationships.' },
   settings: { title: 'Settings', subtitle: 'Runtime, identity, and control surfaces prepared for a desktop AI system.' },
 };
 
@@ -56,7 +49,6 @@ const STORAGE_KEYS = {
   currentChatId: 'lunaai-react-current-chat-id',
   messages: 'lunaai-react-chat-messages',
   projects: 'lunaai-react-projects',
-  gallery: 'lunaai-react-gallery',
   settings: 'lunaai-react-settings',
   page: 'lunaai-react-page',
   seenUpdateVersion: 'lunaai-seen-update-version',
@@ -69,8 +61,6 @@ const defaultRuntimeSettings = {
   memoryLimit: 50,
 };
 
-const screenShareFrameIntervalMs = 1000;
-const screenShareVisionIntervalMs = 1000;
 const spokenTextLimit = 720;
 
 function detectSpeechLanguage(text) {
@@ -154,12 +144,6 @@ function shouldForceVoiceActionExecution(value) {
   return /^(otevri|otevrit|open|spust|spustit|start|launch|zapni|zapnout|run)\b/.test(text);
 }
 
-function wait(ms) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
-}
-
 function isStartDesktopShareIntent(value) {
   const text = normalizeIntentText(value);
   if (!text) return false;
@@ -170,24 +154,6 @@ function isStartDesktopShareIntent(value) {
 
   return hasShareWord && hasDesktopWord && hasStartWord;
 }
-
-const defaultShareAutomationState = {
-  debugPanelOpen: false,
-  plannerSummary: '',
-  confirmationRequest: null,
-  lastAction: null,
-  lastActionStatus: 'idle',
-  lastActionMessage: '',
-  debug: null,
-};
-
-const defaultScreenSharePickerState = {
-  open: false,
-  loading: false,
-  sources: [],
-  error: '',
-  selectingId: '',
-};
 
 const baseNotifications = [];
 
@@ -230,12 +196,6 @@ function inferGeneratedMediaType(text, pendingGenerationType) {
   if (/\b(video|clip|animation|motion)\b/i.test(text)) return 'video';
   if (/\b(image|render|illustration|portrait|photo|poster)\b/i.test(text)) return 'image';
   return '';
-}
-
-function buildGalleryTitle(text, mediaType) {
-  const cleaned = text.replace(/generate/gi, '').replace(/image|video|clip|animation|render/gi, '').trim();
-  if (!cleaned) return mediaType === 'video' ? 'LunaAI Video Output' : 'LunaAI Image Output';
-  return cleaned.slice(0, 48);
 }
 
 function toLocalFileUrl(filePath) {
@@ -502,20 +462,23 @@ function buildRendererFallbackMeta() {
 
 export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(() => {
     const storedPage = window.localStorage.getItem(STORAGE_KEYS.page) || 'chat';
-    if (storedPage === 'eyes') return 'chat';
+    if (['eyes', 'vision', 'friends'].includes(storedPage)) return 'chat';
+    if (storedPage === 'gallery') return 'chat';
     if (storedPage === 'applications') return 'settings';
     return storedPage;
   });
   const [chats, setChats] = useState(() => readStoredJson(STORAGE_KEYS.chats, initialChats));
+  const [selectedTrashIds, setSelectedTrashIds] = useState([]);
+  const [trashBusy, setTrashBusy] = useState(false);
+  const [trashedChatIds, setTrashedChatIds] = useState(() => readStoredJson('lunaai-trash-v1', []));
+  useEffect(() => { window.localStorage.setItem('lunaai-trash-v1', JSON.stringify(trashedChatIds)); }, [trashedChatIds]);
   const [currentChatId, setCurrentChatId] = useState(() => window.localStorage.getItem(STORAGE_KEYS.currentChatId) || initialChats[0]?.id || '');
   const [chatMessages, setChatMessages] = useState(() => readStoredJson(STORAGE_KEYS.messages, buildInitialChatThreads()));
   const [projects, setProjects] = useState(() => readStoredJson(STORAGE_KEYS.projects, projectCards));
-  const [gallery, setGallery] = useState(() => readStoredJson(STORAGE_KEYS.gallery, galleryItems));
   const [runtimeSettings, setRuntimeSettings] = useState(() => readStoredJson(STORAGE_KEYS.settings, defaultRuntimeSettings));
   const [applicationsState, setApplicationsState] = useState([]);
   const [selectedApplicationId, setSelectedApplicationId] = useState('');
@@ -525,24 +488,9 @@ export default function App() {
   const [pendingDesktopContext, setPendingDesktopContext] = useState(null);
   const [desktopObservation, setDesktopObservation] = useState(null);
   const [desktopPreviewUrl, setDesktopPreviewUrl] = useState('');
-  const [screenShare, setScreenShare] = useState({
-    active: false,
-    label: '',
-    stream: null,
-    previewUrl: '',
-    framePath: '',
-    status: '',
-    visionSummary: '',
-    summaryStatus: 'idle',
-    summaryStatusLabel: 'Ready',
-    analyzing: false,
-    frameCount: 0,
-    lastFrameAt: 0,
-  });
   const [status, setStatus] = useState('LunaAI desktop shell ready.');
   const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, kind: 'chat', targetId: '', title: '', saved: false });
   const [appMeta, setAppMeta] = useState(fallbackMeta);
-  const [signedInAs, setSignedInAs] = useState(() => window.localStorage.getItem('lunaai-signed-in') || '');
   const [seenUpdateVersion, setSeenUpdateVersion] = useState(() => window.localStorage.getItem(STORAGE_KEYS.seenUpdateVersion) || '');
   const [updateFeed, setUpdateFeed] = useState(() => buildFallbackUpdateFeed(updates, fallbackMeta.version));
   const [projectModalOpen, setProjectModalOpen] = useState(false);
@@ -559,30 +507,15 @@ export default function App() {
   const [revealingMessage, setRevealingMessage] = useState(null);
   const [pendingAction, setPendingAction] = useState({ active: false, title: '' });
   const [actionEnginePending, setActionEnginePending] = useState({ active: false, title: '' });
-  const [shareAutomation, setShareAutomation] = useState(defaultShareAutomationState);
-  const [screenSharePicker, setScreenSharePicker] = useState(defaultScreenSharePickerState);
   const messages = currentChatId ? chatMessages[currentChatId] || [] : [];
   const revealTimerRef = useRef(null);
   const revealActiveRef = useRef(false);
-  const screenShareStreamRef = useRef(null);
-  const screenShareIntervalRef = useRef(null);
-  const screenShareVideoRef = useRef(null);
-  const screenShareCanvasRef = useRef(null);
-  const latestScreenSharePathRef = useRef('');
-  const screenShareAnalysisBusyRef = useRef(false);
-  const screenShareLastAnalyzedAtRef = useRef(0);
-  const lastShareActionKeyRef = useRef('');
-  const lastShareConfirmationKeyRef = useRef('');
   const announcedUpdateVersionRef = useRef('');
-  const screenShareStateRef = useRef(screenShare);
-  const shareAutomationRef = useRef(shareAutomation);
   const messagesRef = useRef(messages);
   const micSessionRef = useRef(null);
   const speechPlaybackRef = useRef(null);
   const voiceLoopRef = useRef(false);
-  const taskPlanner = useMemo(() => createTaskPlanner(), []);
 
-  const profileName = signedInAs ? signedInAs.split('@')[0] : 'Sakurai Haise';
   const notifications = useMemo(() => {
     const items = [...baseNotifications];
     const updateReady = Boolean(updateFeed?.readyToInstall);
@@ -612,32 +545,12 @@ export default function App() {
   }, [attachment]);
 
   useEffect(() => {
-    screenShareStateRef.current = screenShare;
-  }, [screenShare]);
-
-  useEffect(() => {
-    shareAutomationRef.current = shareAutomation;
-  }, [shareAutomation]);
-
-  useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
 
   useEffect(() => {
     voiceLoopRef.current = voiceLoopEnabled;
   }, [voiceLoopEnabled]);
-
-  useEffect(() => () => {
-    if (screenShareIntervalRef.current) {
-      window.clearInterval(screenShareIntervalRef.current);
-      screenShareIntervalRef.current = null;
-    }
-    const currentStream = screenShareStreamRef.current;
-    if (currentStream) {
-      currentStream.getTracks().forEach((track) => track.stop());
-      screenShareStreamRef.current = null;
-    }
-  }, []);
 
   useEffect(() => {
     const screenshotPath = String(desktopObservation?.screenshot_path || '').trim();
@@ -727,10 +640,6 @@ export default function App() {
   }, [projects]);
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEYS.gallery, JSON.stringify(gallery));
-  }, [gallery]);
-
-  useEffect(() => {
     window.localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(runtimeSettings));
   }, [runtimeSettings]);
 
@@ -778,10 +687,10 @@ export default function App() {
   const filteredChats = useMemo(() => {
     const query = search.trim().toLowerCase();
     return chats
-      .filter((chat) => !chat.archived)
+      .filter((chat) => !chat.archived && !trashedChatIds.includes(chat.id))
       .filter((chat) => (query ? chat.title.toLowerCase().includes(query) : true))
       .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || a.title.localeCompare(b.title));
-  }, [chats, search]);
+  }, [chats, search, trashedChatIds]);
 
   const regularChats = useMemo(() => filteredChats.filter((chat) => !chat.projectId), [filteredChats]);
   const visibleProjects = useMemo(() => projects.filter((project) => !project.archived).sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || (a.title || '').localeCompare(b.title || '')), [projects]);
@@ -796,7 +705,7 @@ export default function App() {
   function applyChatState(result, overrideMessages = null) {
     if (!result?.ok) return false;
     if (Array.isArray(result.chats)) {
-      setChats(result.chats);
+      setChats(current => result.chats.map(chat => { const previous = current.find(item => item.id === chat.id); return previous ? { ...chat, pinned: previous.pinned, archived: previous.archived } : chat; }));
     }
     if (typeof result.currentChatId === 'string') {
       setCurrentChatId(result.currentChatId);
@@ -893,561 +802,6 @@ export default function App() {
 
   function applyBackendChatState(result) {
     return applyChatState(result);
-  }
-
-  function clearScreenShareLoop() {
-    if (screenShareIntervalRef.current) {
-      window.clearInterval(screenShareIntervalRef.current);
-      screenShareIntervalRef.current = null;
-    }
-  }
-
-  function resetShareAutomationState() {
-    lastShareActionKeyRef.current = '';
-    lastShareConfirmationKeyRef.current = '';
-    setShareAutomation(defaultShareAutomationState);
-  }
-
-  function stopScreenShare({ message } = {}) {
-    clearScreenShareLoop();
-    const currentStream = screenShareStreamRef.current;
-    if (currentStream) {
-      currentStream.getTracks().forEach((track) => track.stop());
-      screenShareStreamRef.current = null;
-    }
-    if (screenShareVideoRef.current) {
-      screenShareVideoRef.current.srcObject = null;
-    }
-    latestScreenSharePathRef.current = '';
-    screenShareAnalysisBusyRef.current = false;
-    screenShareLastAnalyzedAtRef.current = 0;
-    resetShareAutomationState();
-    const stoppedShareState = {
-      active: false,
-      label: '',
-      stream: null,
-      previewUrl: '',
-      framePath: '',
-      status: '',
-      visionSummary: '',
-      summaryStatus: 'idle',
-      summaryStatusLabel: 'Ready',
-      analyzing: false,
-      frameCount: 0,
-      lastFrameAt: 0,
-    };
-    screenShareStateRef.current = stoppedShareState;
-    setScreenShare(stoppedShareState);
-    if (message) {
-      setStatus(message);
-    }
-  }
-
-  function closeShareDebugPanel() {
-    lastShareActionKeyRef.current = '';
-    setShareAutomation((current) => ({
-      ...current,
-      debugPanelOpen: false,
-      lastActionStatus: current.lastActionStatus === 'idle' ? 'idle' : 'closed',
-      lastActionMessage: 'Interní debug panel byl zavřený.',
-    }));
-  }
-
-  function ensureScreenShareNodes() {
-    if (!screenShareVideoRef.current) {
-      const video = document.createElement('video');
-      video.autoplay = true;
-      video.muted = true;
-      video.playsInline = true;
-      screenShareVideoRef.current = video;
-    }
-    if (!screenShareCanvasRef.current) {
-      screenShareCanvasRef.current = document.createElement('canvas');
-    }
-    return {
-      video: screenShareVideoRef.current,
-      canvas: screenShareCanvasRef.current,
-    };
-  }
-
-  async function waitForSharedVideoFrame(video, timeoutMs = 900) {
-    if (!video) return false;
-    if (video.videoWidth > 0 && video.videoHeight > 0 && video.readyState >= 2) {
-      return true;
-    }
-
-    await video.play?.().catch(() => {});
-
-    return new Promise((resolve) => {
-      let settled = false;
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        video.removeEventListener('loadedmetadata', finish);
-        video.removeEventListener('loadeddata', finish);
-        video.removeEventListener('playing', finish);
-        window.clearTimeout(timer);
-        resolve(video.videoWidth > 0 && video.videoHeight > 0);
-      };
-      const timer = window.setTimeout(finish, timeoutMs);
-
-      video.addEventListener('loadedmetadata', finish, { once: true });
-      video.addEventListener('loadeddata', finish, { once: true });
-      video.addEventListener('playing', finish, { once: true });
-      if (typeof video.requestVideoFrameCallback === 'function') {
-        video.requestVideoFrameCallback(finish);
-      }
-    });
-  }
-
-  async function persistScreenShareDataUrl(dataUrl, { status = '' } = {}) {
-    const api = window.lunaDesktop?.files;
-    const value = String(dataUrl || '').trim();
-    if (!api?.writeTempDataUrl || !value.startsWith('data:image/')) {
-      return '';
-    }
-
-    const result = await api.writeTempDataUrl({
-      dataUrl: value,
-      extension: value.startsWith('data:image/webp') ? 'webp' : (value.startsWith('data:image/png') ? 'png' : 'jpg'),
-      previousPath: latestScreenSharePathRef.current,
-    }).catch(() => null);
-
-    if (!result?.ok || !result?.path) {
-      return '';
-    }
-
-    const nextPath = String(result.path);
-    const nextFrameAt = Date.now();
-    latestScreenSharePathRef.current = nextPath;
-    const nextStatus = status || 'Desktop share je aktivní. Luna a Xeno mají uložený poslední dostupný frame.';
-
-    setScreenShare((current) => ({
-      ...current,
-      active: true,
-      previewUrl: value,
-      framePath: nextPath,
-      status: nextStatus,
-      lastFrameAt: nextFrameAt,
-    }));
-    screenShareStateRef.current = {
-      ...screenShareStateRef.current,
-      active: true,
-      previewUrl: value,
-      framePath: nextPath,
-      status: nextStatus,
-      lastFrameAt: nextFrameAt,
-    };
-    return nextPath;
-  }
-
-  async function captureSharedDesktopFrame() {
-    const currentStream = screenShareStreamRef.current;
-    const api = window.lunaDesktop?.files;
-    if (!currentStream || !api?.writeTempDataUrl) return '';
-
-    const { video, canvas } = ensureScreenShareNodes();
-    await waitForSharedVideoFrame(video);
-    if (!video.videoWidth || !video.videoHeight) {
-      return '';
-    }
-
-    const targetWidth = Math.min(video.videoWidth, 1440);
-    const scale = targetWidth / video.videoWidth;
-    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
-    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
-
-    const context = canvas.getContext('2d', { alpha: false });
-    if (!context) return '';
-
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.78);
-    const savedPath = await persistScreenShareDataUrl(dataUrl, {
-      status: 'Desktop share je aktivní. Luna a Xeno čtou průběžně obnovované framy ze sdílené obrazovky.',
-    });
-    if (!savedPath) return '';
-    setScreenShare((current) => ({
-      ...current,
-      active: true,
-      stream: current.stream,
-      previewUrl: dataUrl,
-      framePath: savedPath,
-      status: 'Desktop share je aktivní. Luna a Xeno čtou průběžně obnovované framy ze sdílené obrazovky.',
-      frameCount: Number(current.frameCount || 0) + 1,
-      lastFrameAt: Date.now(),
-    }));
-    screenShareStateRef.current = {
-      ...screenShareStateRef.current,
-      active: true,
-      previewUrl: dataUrl,
-      framePath: savedPath,
-      frameCount: Number(screenShareStateRef.current?.frameCount || 0) + 1,
-      lastFrameAt: Date.now(),
-    };
-    return savedPath;
-  }
-
-  async function ensureLatestSharedFrameForMessage() {
-    const currentShare = screenShareStateRef.current || screenShare;
-    let framePath = await captureSharedDesktopFrame();
-    if (framePath) return framePath;
-
-    await wait(160);
-    framePath = await captureSharedDesktopFrame();
-    if (framePath) return framePath;
-
-    const fallbackPath = latestScreenSharePathRef.current
-      || currentShare?.framePath
-      || screenShare.framePath
-      || '';
-    const fallbackFrameAt = Number(currentShare?.lastFrameAt || screenShare.lastFrameAt || 0);
-    const fallbackIsFresh = fallbackFrameAt > 0 && (Date.now() - fallbackFrameAt < 15000);
-    if (fallbackPath && fallbackIsFresh) {
-      return fallbackPath;
-    }
-
-    const previewUrl = currentShare?.previewUrl || screenShare.previewUrl || '';
-    return persistScreenShareDataUrl(previewUrl, {
-      status: 'Desktop share je aktivní. Používám poslední dostupný náhled jako frame pro AI.',
-    });
-  }
-
-  async function executeSharePlan({ framePath, visionSummary }) {
-    const actionApi = window.lunaDesktop?.actionEngine;
-    const currentShare = screenShareStateRef.current;
-    const currentAutomation = shareAutomationRef.current;
-    const userIntent = getLatestUserIntent(messagesRef.current);
-    const plannerResult = taskPlanner.plan({
-      userIntent,
-      visionResult: {
-        description: visionSummary,
-      },
-      shareState: {
-        active: currentShare.active,
-        label: currentShare.label,
-        debugPanelOpen: currentAutomation.debugPanelOpen,
-      },
-    });
-
-    setShareAutomation((current) => ({
-      ...current,
-      plannerSummary: plannerResult.summary,
-      confirmationRequest: plannerResult.confirmationRequest || null,
-      lastAction: plannerResult.action || null,
-      debug: plannerResult.debug,
-    }));
-
-    const nextAction = plannerResult.action;
-    if (!nextAction || !actionApi?.execute) {
-      if (!nextAction) {
-        lastShareActionKeyRef.current = '';
-        lastShareConfirmationKeyRef.current = '';
-      }
-      return;
-    }
-
-    const actionKey = buildActionKey(nextAction);
-    if (!actionKey) return;
-
-    if (nextAction.requiresConfirmation) {
-      if (lastShareConfirmationKeyRef.current === actionKey) return;
-      lastShareConfirmationKeyRef.current = actionKey;
-    } else if (lastShareActionKeyRef.current === actionKey) {
-      return;
-    } else {
-      lastShareActionKeyRef.current = actionKey;
-    }
-
-    const executionResult = await actionApi.execute({
-      action: nextAction,
-      context: {
-        source: 'screen-share',
-        framePath,
-        visionSummary,
-        plannerSummary: plannerResult.summary,
-        userIntent,
-      },
-    }).catch(() => null);
-
-    if (!executionResult) {
-      setShareAutomation((current) => ({
-        ...current,
-        lastActionStatus: 'error',
-        lastActionMessage: 'Action engine nevratil odpoved.',
-      }));
-      return;
-    }
-
-    if (executionResult.confirmationRequest) {
-      applyActionEnginePendingState(executionResult);
-      setShareAutomation((current) => ({
-        ...current,
-        confirmationRequest: executionResult.confirmationRequest,
-        lastActionStatus: executionResult.status || 'confirmation_required',
-        lastActionMessage: executionResult.message || 'Akce ceka na potvrzeni.',
-      }));
-      return;
-    }
-
-    applyActionEnginePendingState(executionResult);
-    setShareAutomation((current) => ({
-      ...current,
-      confirmationRequest: null,
-      lastActionStatus: executionResult.status || (executionResult.executed ? 'executed' : 'idle'),
-      lastActionMessage: executionResult.message || current.lastActionMessage,
-    }));
-  }
-
-  async function refreshScreenShareVisionSummary(framePath, { force = false } = {}) {
-    const api = window.lunaDesktop?.luna;
-    const targetPath = String(framePath || '').trim();
-    if (!targetPath || !api?.analyzeVisual) return '';
-
-    const now = Date.now();
-    if (!force && screenShareAnalysisBusyRef.current) return '';
-    if (!force && now - screenShareLastAnalyzedAtRef.current < screenShareVisionIntervalMs) return '';
-
-    screenShareAnalysisBusyRef.current = true;
-    setScreenShare((current) => ({
-      ...current,
-      analyzing: true,
-      summaryStatus: current.visionSummary ? current.summaryStatus : 'working',
-      summaryStatusLabel: 'Reading',
-    }));
-
-      try {
-        const result = await api.analyzeVisual({
-          filePaths: [targetPath],
-          query: 'Describe only this exact currently shared desktop frame for LunaAI and Xeno. Focus on the active app, visible UI, clearly readable text, and what the user appears to be doing right now. If something is unclear, say it is unclear. Do not infer previous frames, hidden windows, or older screen states.',
-        });
-        const summary = String(result?.summary || '').trim();
-        screenShareLastAnalyzedAtRef.current = Date.now();
-        setScreenShare((current) => ({
-          ...current,
-        analyzing: false,
-        visionSummary: summary || current.visionSummary || 'Vision model did not return a useful summary.',
-        summaryStatus: summary ? 'ok' : 'warning',
-        summaryStatusLabel: summary ? 'Live' : 'No summary',
-      }));
-        if (summary) {
-          await executeSharePlan({
-            framePath: targetPath,
-            visionSummary: summary,
-          });
-        }
-        return summary;
-      } catch {
-        setScreenShare((current) => ({
-          ...current,
-          analyzing: false,
-          summaryStatus: 'error',
-          summaryStatusLabel: 'Unavailable',
-          visionSummary: current.visionSummary || 'Vision summary is temporarily unavailable.',
-        }));
-        return '';
-      } finally {
-        screenShareAnalysisBusyRef.current = false;
-      }
-    }
-
-  async function startScreenShare() {
-    if (!navigator.mediaDevices?.getDisplayMedia) {
-      const message = 'Sdílení obrazovky v tomhle prostředí není dostupné.';
-      setStatus(message);
-      setScreenSharePicker((current) => ({ ...current, loading: false, selectingId: '', error: message }));
-      return false;
-    }
-
-    stopScreenShare({});
-
-    try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          frameRate: { ideal: 8, max: 12 },
-        },
-        audio: false,
-      });
-
-      const track = stream.getVideoTracks()[0];
-      if (!track) {
-        const message = 'Sdílení obrazovky nevrátilo video stopu.';
-        stopScreenShare({ message });
-        setScreenSharePicker((current) => ({
-          ...current,
-          loading: false,
-          selectingId: '',
-          error: message,
-        }));
-        return false;
-      }
-
-      track.addEventListener('ended', () => {
-        stopScreenShare({ message: 'Sdílení obrazovky bylo ukončeno.' });
-      });
-
-      const { video } = ensureScreenShareNodes();
-      video.srcObject = stream;
-      if (video.readyState < 1) {
-        await new Promise((resolve) => {
-          const handleLoaded = () => {
-            video.removeEventListener('loadedmetadata', handleLoaded);
-            resolve();
-          };
-          video.addEventListener('loadedmetadata', handleLoaded);
-        });
-      }
-      await video.play().catch(() => {});
-
-      screenShareStreamRef.current = stream;
-      const startedShareState = {
-        active: true,
-        label: track.label || 'Desktop share',
-        stream,
-        previewUrl: '',
-        framePath: '',
-        status: 'Desktop share běží. Připravuju první frame a vision shrnutí.',
-        visionSummary: '',
-        summaryStatus: 'working',
-        summaryStatusLabel: 'Starting',
-        analyzing: false,
-        frameCount: 0,
-        lastFrameAt: 0,
-      };
-      screenShareStateRef.current = startedShareState;
-      setScreenShare(startedShareState);
-
-      const firstFramePath = await captureSharedDesktopFrame();
-      if (firstFramePath) {
-        await refreshScreenShareVisionSummary(firstFramePath, { force: true });
-      }
-
-      clearScreenShareLoop();
-      screenShareIntervalRef.current = window.setInterval(() => {
-        captureSharedDesktopFrame().then((nextFramePath) => {
-          if (nextFramePath) {
-            refreshScreenShareVisionSummary(nextFramePath);
-          }
-        });
-      }, screenShareFrameIntervalMs);
-
-      setStatus('Desktop share je aktivní. Luna a Xeno čtou obnovované framy ze sdílené obrazovky.');
-      return true;
-    } catch (error) {
-      const message = String(error?.message || '').trim()
-        ? `Sdílení obrazovky se nespustilo: ${String(error.message).trim()}`
-        : 'Sdílení obrazovky se nespustilo.';
-      stopScreenShare({ message });
-      setScreenSharePicker((current) => ({ ...current, loading: false, selectingId: '', error: message }));
-      return false;
-    }
-  }
-
-  async function refreshScreenShareSources() {
-    const api = window.lunaDesktop?.screenShare;
-    if (!api?.listSources) {
-      const message = 'Vyber zdroje sdileni v tomhle buildu jeste neni dostupny.';
-      setScreenSharePicker({
-        ...defaultScreenSharePickerState,
-        open: true,
-        error: message,
-      });
-      setStatus(message);
-      return;
-    }
-
-    setStatus('Nacitam zdroje pro desktop share...');
-    setScreenSharePicker((current) => ({
-      ...current,
-      open: true,
-      loading: true,
-      error: '',
-      selectingId: '',
-    }));
-
-    try {
-      const result = await api.listSources();
-      const sources = Array.isArray(result?.sources) ? result.sources : [];
-      const error = result?.ok === false ? String(result.message || 'Nepodarilo se nacist zdroje sdileni.') : '';
-      setScreenSharePicker({
-        open: true,
-        loading: false,
-        sources,
-        error,
-        selectingId: '',
-      });
-      if (error) {
-        setStatus(error);
-      } else if (sources.length === 0) {
-        setStatus('Nebyl nalezen zadny zdroj pro sdileni. Otevri jine okno nebo zkus cely monitor.');
-      } else {
-        setStatus('Vyber zdroj, ktery chces sdilet.');
-      }
-    } catch (error) {
-      const message = String(error?.message || 'Nepodarilo se nacist zdroje sdileni.');
-      setScreenSharePicker({
-        ...defaultScreenSharePickerState,
-        open: true,
-        error: message,
-      });
-      setStatus(message);
-    }
-  }
-
-  function closeScreenSharePicker() {
-    setScreenSharePicker(defaultScreenSharePickerState);
-  }
-
-  async function handleSelectScreenShareSource(source) {
-    const sourceId = String(source?.id || '').trim();
-    const sourceName = String(source?.name || '').trim();
-    const api = window.lunaDesktop?.screenShare;
-
-    if (!sourceId || !api?.selectSource) {
-      const message = 'Vybrany zdroj nejde predat do Electron capture vrstvy.';
-      setScreenSharePicker((current) => ({
-        ...current,
-        error: message,
-      }));
-      setStatus(message);
-      return;
-    }
-
-    setStatus(`Připravuju sdílení: ${sourceName || 'vybraný zdroj'}.`);
-    setScreenSharePicker((current) => ({
-      ...current,
-      loading: true,
-      selectingId: sourceId,
-      error: '',
-    }));
-
-    try {
-      const result = await api.selectSource(sourceId);
-      if (!result?.ok) {
-        const message = String(result?.message || 'Zdroj se nepodarilo pripravit.');
-        setScreenSharePicker((current) => ({
-          ...current,
-          loading: false,
-          selectingId: '',
-          error: message,
-        }));
-        setStatus(message);
-        return;
-      }
-
-      const started = await startScreenShare();
-      if (started) {
-        closeScreenSharePicker();
-      }
-    } catch (error) {
-      const message = String(error?.message || 'Sdílení obrazovky se nepodařilo spustit.');
-      setScreenSharePicker((current) => ({
-        ...current,
-        loading: false,
-        selectingId: '',
-        error: message,
-      }));
-      setStatus(message);
-    }
   }
 
   async function requestDesktopObservation(includeScreenshot = false, { silent = false } = {}) {
@@ -1548,12 +902,10 @@ export default function App() {
   async function startAssistantMode() {
     setAssistantModeEnabled(true);
     setPage('chat');
-    setStatus('Assistant mode se zapina: voice, vision a agent se spojuji do jednoho rezimu.');
+    setStatus('Assistant mode se zapina: voice, screenshot/document vision a agent se spojuji do jednoho rezimu.');
     await window.lunaDesktop?.window?.showAssistantOverlay?.();
 
-    if (!observeModeEnabled) {
-      await updateObserveMode(true, { silent: true });
-    }
+    await requestDesktopObservation(true, { silent: true });
 
     if (!voiceLoopRef.current) {
       voiceLoopRef.current = true;
@@ -1563,12 +915,7 @@ export default function App() {
       }
     }
 
-    if (!screenShareStateRef.current?.active) {
-      await refreshScreenShareSources();
-      setStatus('Assistant mode bezi. Vyber obrazovku nebo okno, ktere maji Luna a Xeno sledovat.');
-    } else {
-      setStatus('Assistant mode bezi. Luna posloucha, Xeno drzi plan a vision cte sdilenou obrazovku.');
-    }
+    setStatus('Assistant mode bezi. Luna posloucha, Xeno drzi plan a vision pouziva aktualni screenshoty nebo prilozene dokumenty.');
   }
 
   async function stopAssistantMode() {
@@ -1671,7 +1018,7 @@ export default function App() {
 
   useEffect(() => {
     const api = window.lunaDesktop?.luna;
-    if (!api?.observeDesktop || page !== 'eyes' || !observeModeEnabled) return undefined;
+    if (!api?.observeDesktop || page !== 'vision' || !observeModeEnabled) return undefined;
 
     let cancelled = false;
 
@@ -1711,31 +1058,17 @@ export default function App() {
       if (!action?.target) return;
 
       switch (action.target) {
-        case 'open-share-debug-panel':
-          setShareAutomation((current) => ({
-            ...current,
-            debugPanelOpen: true,
-            confirmationRequest: null,
-            lastActionStatus: 'executed',
-            lastActionMessage: 'Interní debug panel je otevřený.',
-          }));
-          setStatus('Otevírám interní debug panel pro share workflow.');
+        case 'open-vision-panel':
+          setPage('chat');
+          setStatus('Vision panel je připravený pro screenshoty, dokumenty a systémový kontext.');
           break;
-        case 'close-share-debug-panel':
-          closeShareDebugPanel();
-          setStatus('Interní debug panel je zavřený.');
-          break;
-        case 'start-share-desktop':
-          refreshScreenShareSources();
-          break;
-        case 'stop-share-desktop':
-          stopScreenShare({ message: 'Desktop share byla zastavena interní akcí.' });
+        case 'capture-screenshot':
+          setPage('chat');
+          requestDesktopObservation(true);
           break;
         case 'chat':
         case 'projects':
         case 'updates':
-        case 'gallery':
-        case 'friends':
         case 'settings':
           setPage(action.target);
           setStatus(`Přepínám interní panel na ${action.target}.`);
@@ -1776,8 +1109,6 @@ export default function App() {
     const decoratedText = normalizedAttachmentName ? `${baseText}
 
 [Attached file: ${normalizedAttachmentName}]` : baseText;
-    let latestSharedFramePath = '';
-    let latestSharedFrameSummary = '';
 
     if (isStartDesktopShareIntent(baseText)) {
       appendMessages(activeChatId, [
@@ -1786,9 +1117,7 @@ export default function App() {
           id: `assistant-${Date.now() + 1}`,
           role: 'assistant',
           author: 'Luna',
-          content: screenShare.active
-            ? 'Luna: Desktop share už běží. Vpravo vidíš živý náhled a Luna/Xeno čtou nové framy. 👀'
-            : 'Luna: Jasně, otevírám výběr zdroje pro Desktop share. Vyber monitor nebo okno a já ho začnu číst jako živý vizuální kontext. 👀',
+          content: 'Luna: Desktop share teď nebudeme používat jako hlavní režim. Pro vision mi pošli soubor přes Add file, nebo použij Capture screenshot a já ho zanalyzuju jako aktuální vizuální kontext.',
         },
       ]);
       setComposer('');
@@ -1796,50 +1125,18 @@ export default function App() {
       setPendingDesktopContext(null);
       setPendingGenerationType('');
       setPage('chat');
-      if (!screenShare.active) {
-        refreshScreenShareSources();
-      } else {
-        setStatus('Desktop share už běží.');
-      }
+      setStatus('Vision mode je nastavený na dokumenty, obrázky a jednorázové screenshoty.');
       return;
-    }
-
-    const currentShareState = screenShareStateRef.current || screenShare;
-    const shareIsActive = Boolean(currentShareState?.active || screenShareStreamRef.current);
-    if (shareIsActive) {
-      latestSharedFramePath = await ensureLatestSharedFrameForMessage();
-      const fallbackFramePath = latestScreenSharePathRef.current
-        || currentShareState?.framePath
-        || screenShare.framePath
-        || '';
-      const shareFrameIsFresh = Number(currentShareState?.lastFrameAt || screenShare.lastFrameAt || 0) > 0
-        && (Date.now() - Number(currentShareState?.lastFrameAt || screenShare.lastFrameAt || 0) < 5000);
-      if (!latestSharedFramePath && (fallbackFramePath || shareFrameIsFresh)) {
-        latestSharedFramePath = fallbackFramePath;
-      }
-      if (latestSharedFramePath) {
-        latestSharedFrameSummary = await refreshScreenShareVisionSummary(latestSharedFramePath, { force: true });
-        if (!latestSharedFrameSummary) {
-          latestSharedFrameSummary = currentShareState?.visionSummary || screenShare.visionSummary || '';
-        }
-      }
     }
 
     const filePaths = [
       ...(attachment?.path ? [attachment.path] : []),
-      ...(latestSharedFramePath ? [latestSharedFramePath] : []),
     ];
     const extraContext = [
       sendOptions.source === 'voice'
         ? 'Input source: voice. Voice mode: user is speaking conversationally. Reply naturally for speech output.'
         : '',
       String(pendingDesktopContext?.context || '').trim(),
-      shareIsActive
-        ? `Active desktop share: ${currentShareState?.label || screenShare.label || 'desktop stream'}. ${latestSharedFramePath ? 'The newest shared frame attached to this message is the current on-screen truth.' : 'The share preview is live, but no frame file was available for this exact message yet.'} It overrides any older screenshots or older screen descriptions in this chat. Answer from the newest shared frame when a frame is attached; if no frame is attached, say the share preview is active but the current frame was not delivered yet.`
-        : '',
-      latestSharedFrameSummary
-        ? `Current live vision summary from the newest shared frame:\n${latestSharedFrameSummary}`
-        : '',
     ].filter(Boolean).join('\n\n');
     const mediaType = inferGeneratedMediaType(baseText, pendingGenerationType);
 
@@ -1877,7 +1174,7 @@ export default function App() {
       }
     } else {
       const fallbackResponse = mediaType
-        ? `Luna prepared a ${mediaType} concept and saved it to Gallery.`
+        ? `Luna prepared a ${mediaType} concept. Visual outputs now belong in the project workspace or as attachments for vision analysis.`
         : 'React + Electron shell accepted the request. IPC is prepared so Luna can later forward this to local AI, Xeno, or agent logic.';
 
       setThinkingState(createThinkingState(baseText));
@@ -1909,19 +1206,6 @@ export default function App() {
           setStatus('Message routed through the LunaAI renderer shell.');
         },
       });
-    }
-
-    if (mediaType) {
-      const galleryEntry = {
-        id: `g-${Date.now()}`,
-        type: mediaType,
-        title: buildGalleryTitle(baseText, mediaType),
-        meta: mediaType === 'video' ? 'AI video output' : 'AI image output',
-        prompt: baseText,
-        createdAt: Date.now(),
-        saved: false,
-      };
-      setGallery((current) => [galleryEntry, ...current]);
     }
 
     setComposer('');
@@ -1981,12 +1265,6 @@ export default function App() {
           ? await actionApi.confirmPending()
           : await actionApi.cancelPending();
         applyActionEnginePendingState(result);
-        setShareAutomation((current) => ({
-          ...current,
-          confirmationRequest: null,
-          lastActionStatus: result?.status || (kind === 'confirm' ? 'executed' : 'cancelled'),
-          lastActionMessage: result?.message || (kind === 'confirm' ? 'Action Engine request executed.' : 'Action Engine request cancelled.'),
-        }));
         setStatus(result?.message || (kind === 'confirm' ? 'Action Engine request executed.' : 'Action Engine request cancelled.'));
       } catch {
         setStatus(kind === 'confirm' ? 'Action Engine confirmation failed.' : 'Action Engine cancellation failed.');
@@ -2115,34 +1393,13 @@ export default function App() {
     setContextMenu({ visible: true, x: event.clientX, y: event.clientY, kind: 'project', targetId: project.id, title: project.title, saved: false });
   }
 
-  function handleGalleryContext(event, item) {
-    event.preventDefault();
-    setContextMenu({
-      visible: true,
-      x: event.clientX,
-      y: event.clientY,
-      kind: 'gallery',
-      targetId: item.id,
-      title: item.title,
-      saved: Boolean(item.saved),
-    });
-  }
-
   function closeContextMenu() {
     setContextMenu((current) => ({ ...current, visible: false }));
   }
 
   function renameChat() {
-    const promptLabel = contextMenu.kind === 'gallery' ? 'Upravit nazev polozky' : 'Rename chat';
-    const next = window.prompt(promptLabel, contextMenu.title);
+    const next = window.prompt('Rename chat', contextMenu.title);
     if (!next) return closeContextMenu();
-
-    if (contextMenu.kind === 'gallery') {
-      setGallery((current) => current.map((item) => (item.id === contextMenu.targetId ? { ...item, title: next } : item)));
-      setStatus('Nazev polozky byl upraven.');
-      closeContextMenu();
-      return;
-    }
 
     if (contextMenu.kind === 'project') {
       let linkedChatId = '';
@@ -2180,13 +1437,6 @@ export default function App() {
   }
 
   function pinChat() {
-    if (contextMenu.kind === 'gallery') {
-      setGallery((current) => current.map((item) => (item.id === contextMenu.targetId ? { ...item, saved: true } : item)));
-      setStatus('Polozka byla ulozena do galerie.');
-      closeContextMenu();
-      return;
-    }
-
     if (contextMenu.kind === 'project') {
       setProjects((current) => current.map((project) => (project.id === contextMenu.targetId ? { ...project, pinned: !project.pinned } : project)));
       setStatus('Project pin state updated.');
@@ -2200,13 +1450,6 @@ export default function App() {
   }
 
   function deleteChat() {
-    if (contextMenu.kind === 'gallery') {
-      setGallery((current) => current.filter((item) => item.id !== contextMenu.targetId));
-      setStatus('Polozka byla vymazana z galerie.');
-      closeContextMenu();
-      return;
-    }
-
     if (contextMenu.kind === 'project') {
       const linkedProject = projects.find((project) => project.id === contextMenu.targetId);
       const linkedChatId = linkedProject?.chatId || '';
@@ -2229,41 +1472,10 @@ export default function App() {
       return;
     }
 
-    const api = window.lunaDesktop?.luna;
-    if (api?.deleteChat) {
-      api.deleteChat(contextMenu.targetId)
-        .then((result) => {
-          applyBackendChatState(result);
-          setStatus('Chat removed from the workspace.');
-        })
-        .catch(() => {
-          const nextChats = chats.filter((chat) => chat.id !== contextMenu.targetId);
-          setChats(nextChats);
-          setChatMessages((current) => {
-            const next = { ...current };
-            delete next[contextMenu.targetId];
-            return next;
-          });
-          if (currentChatId === contextMenu.targetId) {
-            setCurrentChatId(nextChats[0]?.id ?? '');
-          }
-          setStatus('Chat removed locally.');
-        });
-      closeContextMenu();
-      return;
-    }
-
-    const nextChats = chats.filter((chat) => chat.id !== contextMenu.targetId);
-    setChats(nextChats);
-    setChatMessages((current) => {
-      const next = { ...current };
-      delete next[contextMenu.targetId];
-      return next;
-    });
-    if (currentChatId === contextMenu.targetId) {
-      setCurrentChatId(nextChats[0]?.id ?? '');
-    }
-    setStatus('Chat removed from the workspace.');
+    setTrashedChatIds(current => [...new Set([...current, contextMenu.targetId])]);
+    if (currentChatId === contextMenu.targetId) setCurrentChatId('');
+    setPage('history');
+    setStatus('Konverzace byla přesunuta do koše.');
     closeContextMenu();
   }
 
@@ -2282,7 +1494,6 @@ export default function App() {
 
   function handleOpenNotifications() {
     setNotificationsOpen((current) => !current);
-    setProfileOpen(false);
   }
 
   function handleNotificationSelect(item) {
@@ -2297,16 +1508,6 @@ export default function App() {
     }
 
     setNotificationsOpen(false);
-  }
-
-  function handleSignIn() {
-    const email = window.prompt('Sign in to LunaAI', signedInAs || 'operator@lunaai.local');
-    if (!email) return;
-    const cleaned = email.trim();
-    if (!cleaned) return;
-    setSignedInAs(cleaned);
-    window.localStorage.setItem('lunaai-signed-in', cleaned);
-    setStatus(`Signed in as ${cleaned}`);
   }
 
   async function startMicrophoneCapture() {
@@ -2604,7 +1805,8 @@ export default function App() {
       return;
     }
     if (action === 'share-screen') {
-      refreshScreenShareSources();
+      setPage('chat');
+      requestDesktopObservation(true);
       return;
     }
     if (action === 'assistant-mode') {
@@ -2696,10 +1898,6 @@ export default function App() {
     }
   }
 
-  function handleAddFriends() {
-    setStatus('Friend system can be connected next. The add-friends surface is ready.');
-  }
-
   function handleRuntimeSettings(nextPartial) {
     setRuntimeSettings((current) => ({ ...current, ...nextPartial }));
     setStatus('Runtime resource limits adjusted.');
@@ -2783,17 +1981,57 @@ export default function App() {
     setStatus(`Project channel ready: ${project.title}`);
   }
 
-  const contextMenuLabels = contextMenu.kind === 'gallery'
-    ? { rename: 'Upravit', pin: contextMenu.saved ? 'Ulozeno' : 'Ulozit', delete: 'Vymazat' }
-    : { rename: 'Rename', pin: 'Pin Chat', delete: 'Delete', archive: 'Archive' };
+  const contextMenuLabels = { rename: 'Rename', pin: 'Pin Chat', delete: 'Delete', archive: 'Archive' };
+
+  async function deleteSelectedTrash() {
+    const ids = selectedTrashIds.filter(id => trashedChatIds.includes(id) && chats.some(chat => chat.id === id));
+    if (trashBusy || !ids.length) return;
+    if (!window.confirm(`Trvale odstranit vybrané konverzace (${ids.length})?\n\nZprávy nebude možné obnovit z koše.`)) return;
+    setTrashBusy(true);
+    let failed = false;
+    try {
+      for (const id of ids) {
+        const api = window.lunaDesktop?.luna;
+        if (api?.deleteChat) {
+          const result = await api.deleteChat(id);
+          if (!result?.ok) throw new Error('Delete failed');
+          applyBackendChatState(result);
+        }
+        setChats(items => items.filter(item => item.id !== id));
+        setChatMessages(items => { const next = {...items}; delete next[id]; return next; });
+        setTrashedChatIds(items => items.filter(item => item !== id));
+        setSelectedTrashIds(items => items.filter(item => item !== id));
+        setProjects(items => items.map(project => project.chatId === id ? {...project, chatId: ''} : project));
+        setCurrentChatId(current => current === id ? '' : current);
+      }
+    } catch { failed = true; }
+    finally { setTrashBusy(false); }
+    if (failed) window.alert('Některé konverzace se nepodařilo odstranit. Neodstraněné položky zůstávají v koši.');
+  }
 
   function renderMain() {
+    if (['history', 'favorites', 'trash'].includes(page)) {
+      const inTrash = page === 'trash';
+      const rows = chats.filter(chat => inTrash === trashedChatIds.includes(chat.id))
+        .filter(chat => page !== 'favorites' || chat.pinned)
+        .filter(chat => !search.trim() || chat.title.toLowerCase().includes(search.trim().toLowerCase()));
+      const title = inTrash ? 'Koš' : page === 'favorites' ? 'Oblíbené' : 'Všechny konverzace';
+      return <section className="history-page"><h1>{title}</h1><p>{inTrash ? 'Smazané konverzace můžeš obnovit. Zprávy zůstávají zachované.' : 'Vyhledej rozhovor a pokračuj tam, kde jsi skončil.'}</p>
+        <input className="sidebar-search" aria-label="Hledat v historii" placeholder={inTrash ? "Hledat v koši…" : "Hledat v historii…"} value={search} onChange={event => setSearch(event.target.value)}/>
+        {inTrash && <div className="trash-toolbar"><label><input type="checkbox" disabled={trashBusy || !rows.length} checked={rows.length > 0 && rows.every(chat => selectedTrashIds.includes(chat.id))} onChange={event => setSelectedTrashIds(event.target.checked ? rows.map(chat => chat.id) : [])}/> Vybrat vše</label><span>Vybráno: {selectedTrashIds.filter(id => trashedChatIds.includes(id)).length}</span><button className="secondary-button" disabled={trashBusy || !selectedTrashIds.length} onClick={() => {setTrashedChatIds(ids => ids.filter(id => !selectedTrashIds.includes(id)));setSelectedTrashIds([]);}}>Obnovit</button><button className="secondary-button permanent-delete" disabled={trashBusy || !selectedTrashIds.length} onClick={deleteSelectedTrash}>{trashBusy ? 'Odstraňuji…' : 'Odstranit natrvalo'}</button></div>}
+        <div className="history-list">{rows.map(chat => <article key={chat.id} className={`history-item ${inTrash ? 'trash-item' : ''}`}>
+        {inTrash && <input type="checkbox" aria-label={`Vybrat ${chat.title}`} disabled={trashBusy} checked={selectedTrashIds.includes(chat.id)} onChange={event => setSelectedTrashIds(ids => event.target.checked ? [...new Set([...ids, chat.id])] : ids.filter(id => id !== chat.id))}/>}<button className="history-open" disabled={inTrash} onClick={() => handleChatOpen(chat.id)}><strong>{chat.title}</strong><small>{chat.projectId ? 'Projektová konverzace' : 'Konverzace s Lunou'}</small></button>
+        {inTrash ? null : <><button className="history-star" aria-label={chat.pinned ? 'Odebrat z oblíbených' : 'Přidat do oblíbených'} onClick={() => setChats(items => items.map(item => item.id === chat.id ? {...item, pinned: !item.pinned} : item))}>{chat.pinned ? '★' : '☆'}</button><button className="secondary-button" onClick={() => {setTrashedChatIds(ids => [...new Set([...ids, chat.id])]); if (currentChatId === chat.id) setCurrentChatId('');}}>Do koše</button></>}
+        </article>)}</div>{rows.length === 0 && <p className="history-empty">{inTrash ? 'Koš je prázdný.' : 'Žádné odpovídající konverzace.'}</p>}</section>;
+    }
+
     if (page === 'chat') {
       const isEmptyChat = messages.length === 0;
       const combinedPendingAction = pendingAction?.active ? pendingAction : actionEnginePending;
 
       return (
-        <div className={`chat-page ${isEmptyChat ? 'is-empty' : ''}`}>
+        <div className={`chat-page ${isEmptyChat ? 'is-empty' : ''}`} >
+          <div className="conversation-layout">
           <ChatArea
             messages={messages}
             chatId={currentChatId}
@@ -2802,11 +2040,8 @@ export default function App() {
             pendingAction={combinedPendingAction}
             onConfirmPendingAction={() => handlePendingActionDecision('confirm')}
             onCancelPendingAction={() => handlePendingActionDecision('cancel')}
-            screenShare={screenShare}
-            shareAutomation={shareAutomation}
-            onStopScreenShare={() => stopScreenShare({ message: 'Desktop sharing was stopped.' })}
-            onCloseShareDebugPanel={closeShareDebugPanel}
           />
+          </div>
           <ChatInput
             value={composer}
             onChange={setComposer}
@@ -2822,23 +2057,28 @@ export default function App() {
                 setPendingDesktopContext(null);
               }
             }}
-            screenShare={screenShare}
-            onStopScreenShare={() => stopScreenShare({ message: 'Desktop sharing was stopped.' })}
-            micRecording={micRecording}
-            voiceLoopEnabled={voiceLoopEnabled}
-            voiceSpeaking={speechPlaying}
-            assistantModeEnabled={assistantModeEnabled}
             centered={isEmptyChat}
           />
         </div>
       );
     }
 
-    if (page === 'gallery') {
-      return <GalleryPage title={pageData.title} subtitle={pageData.subtitle} items={gallery} onItemContext={handleGalleryContext} />;
+    if (page === 'vision') {
+      return (
+        <EyesPage
+          title={pageData.title}
+          subtitle={pageData.subtitle}
+          observation={desktopObservation}
+          previewUrl={desktopPreviewUrl}
+          observeModeEnabled={observeModeEnabled}
+          busy={eyesBusy}
+          onObserveDesktop={() => requestDesktopObservation(false)}
+          onCaptureScreen={() => requestDesktopObservation(true)}
+        />
+      );
     }
     if (page === 'projects') {
-      return <SectionPage title={pageData.title} subtitle={pageData.subtitle} items={visibleProjects} actionLabel="Create project" onAction={handleOpenProjectModal} onItemClick={handleOpenProjectChat} onItemContext={handleProjectContext} />;
+      return <SectionPage title={pageData.title} subtitle={pageData.subtitle} items={visibleProjects} actionLabel="Nový projekt" onAction={handleOpenProjectModal} onItemClick={handleOpenProjectChat} onItemContext={handleProjectContext} />;
     }
     if (page === 'updates') {
       return (
@@ -2868,21 +2108,6 @@ export default function App() {
         />
       );
     }
-    if (page === 'friends') {
-      return (
-        <div className="friends-page">
-          <div className="friends-empty-card">
-            <div className="friends-empty-copy">
-              <h2>Friends</h2>
-              <p>Keep this surface clean until the social layer is properly connected.</p>
-            </div>
-            <button className="primary-button friends-add-button" type="button" onClick={handleAddFriends}>
-              Add friends
-            </button>
-          </div>
-        </div>
-      );
-    }
     return <SectionPage title={pageData.title} subtitle={pageData.subtitle} items={updates} />;
   }
 
@@ -2893,8 +2118,6 @@ export default function App() {
           <TopBar
             collapsed={sidebarCollapsed}
             onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
-            profileName={profileName}
-            onOpenProfile={() => { setProfileOpen(true); setNotificationsOpen(false); }}
             onOpenNotifications={handleOpenNotifications}
             notificationCount={notificationCount}
             onWindowAction={handleWindowAction}
@@ -2905,10 +2128,12 @@ export default function App() {
             collapsed={sidebarCollapsed}
             search={search}
             onSearchChange={setSearch}
-            sections={sidebarSections}
             currentPage={page}
             onSelectPage={setPage}
-            regularChats={regularChats}
+            regularChats={filteredChats}
+            projects={visibleProjects}
+            onProjectOpen={handleOpenProjectChat}
+            onNewProject={handleOpenProjectModal}
             currentChatId={currentChatId}
             onNewChat={handleNewChat}
             onChatOpen={handleChatOpen}
@@ -2917,17 +2142,6 @@ export default function App() {
           />
         }
         main={renderMain()}
-        profilePanel={
-          <ProfilePanel
-            visible={profileOpen}
-            profileName={profileName}
-            appMeta={appMeta}
-            signedInAs={signedInAs}
-            signInLabel={signedInAs ? 'Switch account' : 'Sign in'}
-            onSignIn={handleSignIn}
-            onClose={() => setProfileOpen(false)}
-          />
-        }
         notificationsPanel={
           <NotificationsPanel
             visible={notificationsOpen}
@@ -2947,7 +2161,7 @@ export default function App() {
             onArchive={archiveChat}
             onClose={closeContextMenu}
             labels={contextMenuLabels}
-            showArchive={contextMenu.kind !== 'gallery'}
+            showArchive={true}
             showPin={true}
           />
         }
@@ -2960,16 +2174,6 @@ export default function App() {
         onSelectType={setProjectType}
         onClose={handleCloseProjectModal}
         onCreate={handleCreateProject}
-      />
-      <ScreenShareSourcePicker
-        picker={screenSharePicker}
-        onClose={closeScreenSharePicker}
-        onRefresh={refreshScreenShareSources}
-        onSelectSource={handleSelectScreenShareSource}
-      />
-      <DesktopShareOverlay
-        screenShare={screenShare}
-        onStopScreenShare={() => stopScreenShare({ message: 'Desktop sharing was stopped.' })}
       />
       <VoiceSessionOverlay
         visible={voiceLoopEnabled || micRecording || speechPlaying}

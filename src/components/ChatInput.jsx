@@ -1,29 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { normalizeTransportText } from '../utils/textRepair';
 
-function MicIcon() {
-  return (
-    <svg className="input-icon-glyph" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 15.5a3.5 3.5 0 0 0 3.5-3.5V7a3.5 3.5 0 1 0-7 0v5a3.5 3.5 0 0 0 3.5 3.5Z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-      <path d="M12 17v3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-      <path d="M9 20.5h6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function VoiceIcon() {
-  return (
-    <svg className="input-icon-glyph" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M6 14.5v-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-      <path d="M9.5 17v-10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-      <path d="M13 15.5v-7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-      <path d="M16.5 18v-12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-      <path d="M20 13v-2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 export default function ChatInput({
   value,
   onChange,
@@ -31,11 +8,6 @@ export default function ChatInput({
   onAction,
   attachment,
   onClearAttachment,
-  screenShare,
-  micRecording = false,
-  voiceLoopEnabled = false,
-  voiceSpeaking = false,
-  assistantModeEnabled = false,
   centered = false,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -69,11 +41,6 @@ export default function ChatInput({
     onAction('file', file);
     setMenuOpen(false);
     event.target.value = '';
-  }
-
-  function handleGenerateImage() {
-    onAction('image');
-    setMenuOpen(false);
   }
 
   function handleTextChange(event) {
@@ -118,24 +85,17 @@ export default function ChatInput({
           className={`input-icon-button ${menuOpen ? 'is-open' : ''}`}
           type="button"
           onClick={() => setMenuOpen((current) => !current)}
-          aria-label="Open quick actions"
+          aria-label="Přidat přílohu nebo akci"
+          aria-expanded={menuOpen}
         >
           +
         </button>
         {menuOpen && (
           <div className="chat-plus-menu">
-            <button
-              type="button"
-              className={assistantModeEnabled ? 'is-active' : ''}
-              onClick={() => { onAction('assistant-mode'); setMenuOpen(false); }}
-            >
-              {assistantModeEnabled ? 'Stop assistant mode' : 'Assistant mode'}
+            <button type="button" onClick={() => fileInputRef.current?.click()}>Přiložit soubor</button>
+            <button type="button" onClick={() => { onAction('screenshot'); setMenuOpen(false); }}>
+              Snímek obrazovky
             </button>
-            <button type="button" onClick={() => fileInputRef.current?.click()}>Add file</button>
-            <button type="button" onClick={() => { onAction('share-screen'); setMenuOpen(false); }}>
-              {screenShare?.active ? 'Restart desktop share' : 'Share desktop'}
-            </button>
-            <button type="button" onClick={handleGenerateImage}>Generate image</button>
           </div>
         )}
         <input ref={fileInputRef} type="file" hidden onChange={handleFileChange} />
@@ -146,7 +106,7 @@ export default function ChatInput({
           <div className={`attachment-chip ${isImageAttachment ? 'is-image' : ''}`}>
             {isImageAttachment && <img src={attachment.previewUrl} alt={attachment.name} className="attachment-preview" />}
             <span>{attachment.name}</span>
-            <button type="button" onClick={onClearAttachment} aria-label="Remove attachment">x</button>
+            <button type="button" onClick={onClearAttachment} aria-label="Odebrat přílohu">x</button>
           </div>
         )}
         <textarea
@@ -155,29 +115,12 @@ export default function ChatInput({
           onChange={handleTextChange}
           onPaste={handlePaste}
           onKeyDown={handleKeyDown}
-          placeholder="Message Luna..."
+          placeholder="Napiš Luně…"
+          aria-label="Zpráva pro Lunu"
           rows={1}
         />
       </div>
-      <button
-        className={`input-icon-button ${micRecording ? 'is-recording' : ''}`}
-        type="button"
-        onClick={() => onAction('mic')}
-        aria-label={micRecording ? 'Stop recording' : 'Microphone'}
-        title={micRecording ? 'Stop recording and transcribe' : 'Record voice message'}
-      >
-        <MicIcon />
-      </button>
-      <button
-        className={`input-icon-button input-icon-button-solid ${voiceSpeaking ? 'is-speaking' : ''} ${voiceLoopEnabled ? 'is-voice-loop' : ''}`}
-        type="button"
-        onClick={() => onAction('voice')}
-        aria-label={voiceLoopEnabled ? 'Disable voice loop' : 'Enable voice loop'}
-        title={voiceLoopEnabled ? 'Voice loop is active' : 'Enable voice loop'}
-      >
-        <VoiceIcon />
-      </button>
-      <button className="send-button" type="button" onClick={() => onSend()}>Send</button>
+      <button className="send-button" type="button" onClick={() => onSend()}>Odeslat</button>
     </div>
   );
 }

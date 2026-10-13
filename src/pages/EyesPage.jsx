@@ -18,7 +18,6 @@ export default function EyesPage({
   busy,
   onObserveDesktop,
   onCaptureScreen,
-  onToggleObserveMode,
 }) {
   const screenshotPath = String(observation?.screenshot_path || '').trim();
   const screenshotUrl = String(previewUrl || '').trim();
@@ -35,14 +34,14 @@ export default function EyesPage({
         <div className="eyes-preview-surface">
           <div className="eyes-preview-head">
             <span className={`eyes-status-pill ${observeModeEnabled ? 'is-active' : ''}`}>
-              {observeModeEnabled ? 'Watching' : 'Paused'}
+              {observeModeEnabled ? 'Context armed' : 'Snapshot mode'}
             </span>
             <small>
               {busy
-                ? 'Refreshing eyes...'
+                ? 'Analyzing visual context...'
                 : observeModeEnabled
-                  ? 'Eyes are tracking the desktop and refreshing the latest capture.'
-                  : 'Desktop perception layer'}
+                  ? 'Vision can reuse fresh screenshots as context.'
+                  : 'Document and screenshot recognition layer'}
             </small>
           </div>
 
@@ -53,8 +52,8 @@ export default function EyesPage({
           ) : (
             <div className="eyes-preview-empty">
               <div className="eyes-preview-orb" />
-              <strong>Eyes are ready</strong>
-              <p>Capture the current screen or turn on observe mode to start feeding Luna and Xeno real desktop context.</p>
+              <strong>Vision is ready</strong>
+              <p>Attach a document, image, or capture one screenshot. Luna and Xeno will analyze that exact file as visual context.</p>
             </div>
           )}
 
@@ -68,34 +67,24 @@ export default function EyesPage({
       </PanelCard>
 
       <PanelCard
-        title="Eyes Control"
-        subtitle="Control what Luna and Xeno can see, when they keep watching, and what visual summary they carry into the next reply."
+        title="Vision Control"
+        subtitle="Use one-shot screenshots and attached files for grounded visual understanding. No permanent desktop stream required."
         className="eyes-panel-card"
       >
         <div className="eyes-control-surface">
           <div className="eyes-action-row">
             <button type="button" className="secondary-button" onClick={onObserveDesktop} disabled={busy}>
-              Observe desktop
+              Read desktop context
             </button>
             <button type="button" className="secondary-button" onClick={onCaptureScreen} disabled={busy}>
               Capture screen
-            </button>
-            <button
-              type="button"
-              className={`primary-button eyes-observe-toggle ${observeModeEnabled ? 'is-active' : ''}`}
-              onClick={onToggleObserveMode}
-              disabled={busy}
-            >
-              {observeModeEnabled ? 'Pause eyes' : 'Start watching'}
             </button>
           </div>
 
           <div className="eyes-summary-block">
             <span>What Luna sees</span>
             <p>
-              {observeModeEnabled
-                ? `Live desktop watch is active. ${activity || detail || 'Luna is waiting for the next visual refresh.'}`
-                : activity || detail || 'No live desktop observation has been captured yet.'}
+              {activity || detail || 'No screenshot or visual document has been analyzed yet.'}
             </p>
           </div>
 
@@ -106,7 +95,7 @@ export default function EyesPage({
 
           <div className="eyes-summary-block is-vision">
             <span>Vision summary</span>
-            <p>{visionSummary || 'No screenshot has been analyzed by the vision model yet.'}</p>
+            <p>{visionSummary || 'No screenshot, image, or document has been analyzed by the vision model yet.'}</p>
           </div>
 
           {screenshotPath ? (

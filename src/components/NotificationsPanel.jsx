@@ -1,4 +1,5 @@
 export default function NotificationsPanel({ visible, items, onSelect, onClose }) {
+  if (!visible) return null;
   return (
     <div className={`notifications-panel ${visible ? 'is-open' : ''}`}>
       <div className="notifications-panel-card">

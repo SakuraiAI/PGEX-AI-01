@@ -1,5 +1,5 @@
 {
-  "name": "lunaai-electron-shell",
+  "name": "pgex-ai-01",
   "version": "0.1.0",
   "private": true,
   "main": "electron/main.js",
@@ -19,5 +19,6 @@
     "electron": "^33.2.1",
     "vite": "^5.4.10",
     "wait-on": "^8.0.1"
-  }
+  },
+  "productName": "PGEX-AI-01"
 }
