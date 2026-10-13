@@ -21,7 +21,7 @@ export function createSystemActions() {
       const target = String(action?.target || '').trim();
 
       if (type === 'open_app') {
-        const result = launchApplication(normalizeTarget(target));
+        const result = await launchApplication(normalizeTarget(target));
         return {
           ok: Boolean(result?.ok),
           executed: Boolean(result?.ok),

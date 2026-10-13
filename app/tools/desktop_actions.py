@@ -16,6 +16,7 @@ from pathlib import Path
 from urllib.parse import quote_plus
 
 from app.core.user_settings import UserWorkspaceSettings
+from app.tools.app_discovery import find_registered_app, launch_registered_app
 
 
 @dataclass(slots=True)
@@ -1808,14 +1809,12 @@ main()
         app_name = self.APP_DISPLAY_NAMES.get(app_key, app_key)
         action_key = f"launch_{app_key}"
         if not app_path:
-            return self._result(
-                ok=False,
-                status="failed",
-                message=f"{app_name} nema nastavenou cestu a nepodarilo se ji najit automaticky.",
-                detail="No app path was found in settings, config/apps.json, PATH, or Windows where.exe.",
-                category="app_launch",
-                action_key=action_key,
-            )
+            try:
+                result = launch_registered_app(app_key)
+                return self._result(ok=bool(result["ok"]), status="completed" if result["ok"] else "failed",
+                    message=result["message"], category="app_launch", action_key=action_key)
+            except (OSError, ValueError, subprocess.SubprocessError) as error:
+                return self._result(ok=False, status="failed", message=str(error), category="app_launch", action_key=action_key)
 
         target_path = Path(app_path)
         if not target_path.exists():
@@ -1864,7 +1863,7 @@ main()
                         action_key=action_key,
                         workspace=str(workspace),
                     )
-                subprocess.Popen([str(target_path)])
+                subprocess.Popen(self._vscode_command(str(target_path)), creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
                 return self._result(
                     ok=True,
                     status="completed",

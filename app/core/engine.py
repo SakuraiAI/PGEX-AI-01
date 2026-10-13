@@ -24,6 +24,7 @@ from app.core.system_control import SystemControlLayer
 from app.core.prompt_builder import PromptBuilder
 from app.core.project_store import ProjectStore
 from app.core.runtime_status import RuntimeStatusFormatter
+from app.tools.app_discovery import find_registered_app
 from app.core.user_settings import UserSettingsStore
 from app.core.vision_layer import VisionLayer
 from app.memory.chat_memory import ChatMemory
@@ -1946,7 +1947,11 @@ class LunaEngine:
         for app_key, aliases in app_aliases.items():
             if lowered in aliases or any(alias in lowered for alias in aliases):
                 return app_key
-        return ""
+        try:
+            item = find_registered_app(lowered)
+            return item['title'] if item else ""
+        except (OSError, ValueError, RuntimeError):
+            return ""
 
     def _find_recent_workspace_target(self, target_name: str, *, prefer_directory: bool | None = None) -> Path | None:
         clean_name = target_name.strip().strip('"').strip("'").lower()
@@ -3256,6 +3261,20 @@ class LunaEngine:
                     raise OSError(message or "Aplikaci se nepodarilo otevrit.")
 
                 return self._guarded_action("app_launch", f"open {app_key}", launch_app)
+
+        # Resolve an explicit app-opening command against the installed app list.
+        match = re.fullmatch(r"(?:prosim )?(?:otevri|spust|zapni|open|launch|start) (?:mi )?(?:aplikaci |program )?(.+?)[.!?]*", normalized)
+        if match:
+            try:
+                item = find_registered_app(match.group(1))
+            except (OSError, ValueError, RuntimeError):
+                item = None
+            if item:
+                def launch_registered() -> str:
+                    result = self.open_connected_app(item['key'], '', log_result=False)
+                    if not result.get('ok'): raise OSError(result.get('message', 'Spuštění selhalo.'))
+                    return str(result['message'])
+                return self._guarded_action('app_launch', f"open {item['title']}", launch_registered)
 
         return None
 

@@ -67,3 +67,12 @@ img.luna-avatar{object-fit:cover;object-position:50% 35%;padding:0}
 .message-code pre { margin: 8px 0 0; overflow-x: auto; white-space: pre; }
 .message-code code { padding: 0; }
 .message-bubble { min-width: 0; }
+
+.installed-app-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.installed-app-toolbar input { flex: 1 1 auto; width: auto; min-width: 120px; margin: 0; }
+.installed-app-toolbar button, .installed-app-row button { flex: 0 0 auto; width: auto; min-width: 100px; padding: 10px 16px; }
+.settings-page-grid { grid-template-columns: minmax(0, 1fr); }
+.installed-app-list { max-height: 55vh; overflow-y: auto; }
+.installed-app-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid #30343b; }
+.installed-app-row span { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.installed-app-row button { flex-shrink: 0; }

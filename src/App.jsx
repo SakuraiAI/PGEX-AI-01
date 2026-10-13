@@ -351,7 +351,8 @@ export default function App() {
   const [projects, setProjects] = useState(() => readStoredJson(STORAGE_KEYS.projects, projectCards));
   const [runtimeSettings, setRuntimeSettings] = useState(() => readStoredJson(STORAGE_KEYS.settings, defaultRuntimeSettings));
   const [applicationsState, setApplicationsState] = useState([]);
-  const [selectedApplicationId, setSelectedApplicationId] = useState('');
+  const [applicationsError, setApplicationsError] = useState('');
+  const runtimeSettingsDirtyRef = useRef(false);
   const [composer, setComposer] = useState('');
   const [attachment, setAttachment] = useState(null);
   const [observeModeEnabled, setObserveModeEnabled] = useState(false);
@@ -447,7 +448,7 @@ export default function App() {
       try {
         const meta = await api.app.getMeta();
         setAppMeta((current) => ({ ...current, ...meta }));
-        if (meta?.runtimeSettings) {
+        if (meta?.runtimeSettings && !runtimeSettingsDirtyRef.current) {
           setRuntimeSettings((current) => ({ ...current, ...meta.runtimeSettings }));
         }
       } catch {
@@ -462,15 +463,16 @@ export default function App() {
       try {
         const nextApps = await api.apps.list();
         setApplicationsState(Array.isArray(nextApps) ? nextApps : []);
+        setApplicationsError('');
       } catch {
-        setApplicationsState([]);
+        setApplicationsError('Seznam aplikací se nepodařilo načíst. Zkus jej obnovit.');
       }
     }
 
     refreshMeta();
     refreshApplications();
     const intervalId = window.setInterval(refreshMeta, 3000);
-    const applicationsIntervalId = window.setInterval(refreshApplications, 6000);
+    const applicationsIntervalId = window.setInterval(refreshApplications, 60000);
 
     if (!api?.app?.getMeta) {
       setStatus('Renderer mode active. Desktop system details are partially estimated.');
@@ -797,18 +799,6 @@ export default function App() {
       window.clearInterval(intervalId);
     };
   }, [page, observeModeEnabled]);
-
-  useEffect(() => {
-    if (!applicationsState.length) {
-      setSelectedApplicationId('');
-      return;
-    }
-    setSelectedApplicationId((current) => (
-      current && applicationsState.some((item) => item.id === current)
-        ? current
-        : applicationsState[0].id
-    ));
-  }, [applicationsState]);
 
   useEffect(() => {
     const actionApi = window.lunaDesktop?.actionEngine;
@@ -1217,69 +1207,44 @@ export default function App() {
     if (action === 'screenshot') requestDesktopObservation(true);
   }
 
-  async function handleSaveApplicationPath(appItem, nextPath) {
-    if (!appItem?.key) return;
-
-    const api = window.lunaDesktop?.apps;
-    if (!api?.updatePath) {
-      setStatus('Application path editing works only inside the Electron desktop shell.');
-      return;
-    }
-
+  async function handleRefreshApplications() {
     try {
-      const result = await api.updatePath(appItem.key, nextPath);
-      if (Array.isArray(result?.apps)) {
-        setApplicationsState(result.apps);
-      }
-      setStatus(result?.message || `${appItem.title} path saved.`);
+      const api = window.lunaDesktop?.apps;
+      if (!api?.list) throw new Error('Desktop unavailable');
+      const items = await api.list(true);
+      setApplicationsState(Array.isArray(items) ? items : []);
+      setApplicationsError('');
     } catch {
-      setStatus(`${appItem.title} path could not be saved.`);
+      setApplicationsError('Seznam aplikací se nepodařilo načíst. Ověř, že používáš desktopové PGEX.');
     }
   }
 
   async function handleOpenApplication(appItem) {
-    if (!appItem?.key) return;
-
-    const api = window.lunaDesktop?.apps;
-    if (!api?.launch) {
-      setStatus('Application launch works only inside the Electron desktop shell.');
-      return;
-    }
-
     try {
-      const result = await api.launch(appItem.key);
-      setStatus(result?.message || `${appItem.title} action finished.`);
-      if (api.list) {
-        const nextApps = await api.list();
-        setApplicationsState(Array.isArray(nextApps) ? nextApps : []);
-      }
+      const api = window.lunaDesktop?.apps;
+      if (!api?.launch) throw new Error('Desktop unavailable');
+      return await api.launch(appItem.key);
     } catch {
-      setStatus(`${appItem.title} could not be launched.`);
+      return { ok: false, message: `Aplikaci ${appItem.title} se nepodařilo otevřít.` };
     }
   }
 
   function handleRuntimeSettings(nextPartial) {
+    runtimeSettingsDirtyRef.current = true;
     setRuntimeSettings((current) => ({ ...current, ...nextPartial }));
-    setStatus('Runtime resource limits adjusted.');
   }
 
   async function handleSaveRuntimeSettings() {
-    window.localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(runtimeSettings));
-
     try {
       const api = window.lunaDesktop?.settings;
-      if (api?.saveRuntime) {
-        const saved = await api.saveRuntime(runtimeSettings);
-        setRuntimeSettings((current) => ({ ...current, ...saved }));
-        setStatus('Runtime resource limits saved to desktop settings.');
-        return;
-      }
+      if (!api?.saveRuntime) throw new Error('Desktop unavailable');
+      const saved = await api.saveRuntime(runtimeSettings);
+      setRuntimeSettings(saved);
+      runtimeSettingsDirtyRef.current = false;
+      return { ok: true, message: 'Profil je uložený. Použije se od další zprávy.' };
     } catch {
-      setStatus('Runtime settings were saved locally, but desktop sync failed.');
-      return;
+      return { ok: false, message: 'Profil se nepodařilo uložit pro Lunu. Zkus to znovu v desktopové aplikaci.' };
     }
-
-    setStatus('Runtime resource limits saved.');
   }
 
   function handleOpenProjectModal() {
@@ -1470,12 +1435,10 @@ export default function App() {
           settings={runtimeSettings}
           onChange={handleRuntimeSettings}
           onSave={handleSaveRuntimeSettings}
-          appMeta={appMeta}
           applications={applicationsState}
-          selectedAppId={selectedApplicationId}
-          onSelectApp={setSelectedApplicationId}
+          applicationsError={applicationsError}
+          onRefreshApps={handleRefreshApplications}
           onOpenApp={handleOpenApplication}
-          onSavePath={handleSaveApplicationPath}
         />
       );
     }

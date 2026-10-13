@@ -1,3 +1,4 @@
+import { registeredApplications } from './appDiscovery.js';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -61,6 +62,11 @@ function resolveAppPath(target, context) {
 
 async function openApp(command, context) {
   const target = sanitizeText(command?.target || '').toLowerCase();
+  const registered = await registeredApplications('resolve', target);
+  if (registered.ok && registered.app) {
+    const result = await registeredApplications('launch', registered.app.key);
+    return buildResult(Boolean(result.ok), 'open_app', target, result.message, result.ok ? null : 'APP_LAUNCH_FAILED');
+  }
   const appPath = resolveAppPath(target, context);
   if (!appPath) {
     return buildResult(false, 'open_app', target, `App '${target}' is not configured and was not found on PATH.`, 'APP_NOT_FOUND');

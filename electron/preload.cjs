@@ -26,8 +26,7 @@ contextBridge.exposeInMainWorld('lunaDesktop', {
     saveRuntime: (payload) => ipcRenderer.invoke('settings:save-runtime', payload),
   },
   apps: {
-    list: () => ipcRenderer.invoke('apps:list'),
-    updatePath: (appKey, nextPath) => ipcRenderer.invoke('apps:update-path', appKey, nextPath),
+    list: (refresh = false) => ipcRenderer.invoke('apps:list', refresh),
     launch: (appKey) => ipcRenderer.invoke('apps:launch', appKey),
   },
   updates: {

@@ -6,7 +6,7 @@ import fs from 'node:fs/promises';
 
 import { readRuntimeSettings, writeRuntimeSettings } from './services/runtimeSettings.js';
 import { buildUpdateFeed, openUpdateDownload, prepareUpdateDownload, restartAndInstallUpdate } from './services/updates.js';
-import { getApplicationsState, launchApplication, updateApplicationPath } from './services/applications.js';
+import { getApplicationsState, launchApplication } from './services/applications.js';
 import { runLunaBridge } from './services/lunaBridge.js';
 import { createSystemMetricsReader } from './services/systemMetrics.js';
 import { registerActionIpc } from './ipc/actionIpc.js';
@@ -520,13 +520,10 @@ ipcMain.handle('settings:save-runtime', (_, nextSettings) => {
   return writeRuntimeSettings(nextSettings || {});
 });
 
-ipcMain.handle('apps:list', () => {
-  return getApplicationsState();
+ipcMain.handle('apps:list', (_, refresh) => {
+  return getApplicationsState(Boolean(refresh));
 });
 
-ipcMain.handle('apps:update-path', (_, appKey, nextPath) => {
-  return updateApplicationPath(String(appKey || ''), String(nextPath || ''));
-});
 
 ipcMain.handle('apps:launch', (_, appKey) => {
   return launchApplication(String(appKey || ''));
