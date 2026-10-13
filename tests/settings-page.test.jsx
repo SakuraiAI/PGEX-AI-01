@@ -14,6 +14,7 @@ it('shows a save failure instead of claiming the profile was saved', async () =>
 it('filters installed apps and opens by registry key without a path input', async () => {
   const open = vi.fn().mockResolvedValue({ ok: true, message: 'Spouštím Blender' });
   render(<SettingsPage settings={settings} onOpenApp={open} applications={[{ key: 'b', title: 'Blender' }, { key: 'v', title: 'VS Code' }]} />);
+  screen.getByText('Aplikace v počítači').closest('details').open = true;
   fireEvent.change(screen.getByRole('textbox', { name: 'Hledat aplikaci' }), { target: { value: 'blender' } });
   expect(screen.queryByRole('button', { name: 'Otevřít VS Code' })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Otevřít Blender' }));

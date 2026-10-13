@@ -53,7 +53,8 @@ export default function SettingsPage({ settings, onChange, onSave, applications 
         </div>
       </PanelCard>
     </details>
-    <PanelCard title="Aplikace v počítači" subtitle="PGEX načítá aplikace z nabídky Start ve Windows. Cesty vyplňovat nemusíš. V chatu můžeš napsat například „Otevři Blender“.">
+    <details className="advanced-settings"><summary>Aplikace v počítači</summary>
+    <PanelCard title="Nalezené aplikace" subtitle="PGEX načítá aplikace z nabídky Start ve Windows. Cesty vyplňovat nemusíš. V chatu můžeš napsat například „Otevři Blender“.">
       <div className="installed-app-toolbar">
         <input className="sidebar-search" aria-label="Hledat aplikaci" placeholder="Hledat aplikaci…" value={query} onChange={event => setQuery(event.target.value)} />
         <button type="button" className="secondary-button" disabled={refreshing} onClick={refresh}>{refreshing ? 'Hledám…' : 'Obnovit seznam'}</button>
@@ -68,5 +69,6 @@ export default function SettingsPage({ settings, onChange, onSave, applications 
         {!matching.length && <p>{applications.length ? 'Žádná aplikace neodpovídá hledání.' : 'Seznam se připravuje. Pokud zůstane prázdný, zkus jej obnovit.'}</p>}
       </div>
     </PanelCard>
+    </details>
   </div>;
 }
